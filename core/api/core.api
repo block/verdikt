@@ -1,0 +1,114 @@
+public abstract interface class verdikt/AsyncRule {
+	public abstract fun evaluate (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun failureReason (Ljava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getDescription ()Ljava/lang/String;
+	public abstract fun getName ()Ljava/lang/String;
+}
+
+public final class verdikt/AsyncRule$DefaultImpls {
+	public static fun getDescription (Lverdikt/AsyncRule;)Ljava/lang/String;
+}
+
+public final class verdikt/DslKt {
+	public static final fun rule (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)Lverdikt/Rule;
+	public static final fun rules (Lkotlin/jvm/functions/Function1;)Lverdikt/RuleSet;
+}
+
+public final class verdikt/Failure {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lverdikt/Failure;
+	public static synthetic fun copy$default (Lverdikt/Failure;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lverdikt/Failure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/Object;
+	public final fun getRuleName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class verdikt/Rule {
+	public abstract fun evaluate (Ljava/lang/Object;)Z
+	public abstract fun failureReason (Ljava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getDescription ()Ljava/lang/String;
+	public abstract fun getName ()Ljava/lang/String;
+}
+
+public final class verdikt/Rule$DefaultImpls {
+	public static fun getDescription (Lverdikt/Rule;)Ljava/lang/String;
+}
+
+public final class verdikt/RuleBuilder {
+	public final fun asyncCondition (Lkotlin/jvm/functions/Function2;)V
+	public final fun condition (Lkotlin/jvm/functions/Function1;)V
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun onFailure (Ljava/lang/Object;)V
+	public final fun onFailure (Lkotlin/jvm/functions/Function1;)V
+	public final fun setDescription (Ljava/lang/String;)V
+}
+
+public abstract interface class verdikt/RuleSet {
+	public abstract fun evaluate (Ljava/lang/Object;)Lverdikt/Verdict;
+	public abstract fun evaluateAsync (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getNames ()Ljava/util/List;
+	public abstract fun getRules ()Ljava/util/List;
+	public abstract fun getSize ()I
+	public abstract fun isEmpty ()Z
+	public abstract fun plus (Lverdikt/RuleSet;)Lverdikt/RuleSet;
+}
+
+public final class verdikt/RuleSetBuilder {
+	public final fun add (Lverdikt/AsyncRule;)V
+	public final fun add (Lverdikt/Rule;)V
+	public final fun include (Lverdikt/RuleSet;)V
+	public final fun rule (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class verdikt/RuleSetKt {
+	public static final fun failedRules (Lverdikt/RuleSet;Lverdikt/Verdict;)Ljava/util/List;
+	public static final fun passedRules (Lverdikt/RuleSet;Lverdikt/Verdict;)Ljava/util/List;
+}
+
+public final class verdikt/SideEffectKt {
+	public static final fun sideEffect (Lverdikt/Rule;Lkotlin/jvm/functions/Function3;)Lverdikt/Rule;
+	public static final fun sideEffect (Lverdikt/RuleSet;Lkotlin/jvm/functions/Function3;)Lverdikt/RuleSet;
+}
+
+public abstract interface class verdikt/Verdict {
+	public abstract fun getFailed ()Z
+	public abstract fun getPassed ()Z
+}
+
+public final class verdikt/Verdict$DefaultImpls {
+	public static fun getFailed (Lverdikt/Verdict;)Z
+	public static fun getPassed (Lverdikt/Verdict;)Z
+}
+
+public final class verdikt/Verdict$Fail : verdikt/Verdict {
+	public fun <init> (Ljava/util/List;)V
+	public fun <init> (Lverdikt/Failure;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lverdikt/Verdict$Fail;
+	public static synthetic fun copy$default (Lverdikt/Verdict$Fail;Ljava/util/List;ILjava/lang/Object;)Lverdikt/Verdict$Fail;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getFailed ()Z
+	public final fun getFailures ()Ljava/util/List;
+	public final fun getMessages ()Ljava/util/List;
+	public fun getPassed ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/Verdict$Pass : verdikt/Verdict {
+	public static final field INSTANCE Lverdikt/Verdict$Pass;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getFailed ()Z
+	public fun getPassed ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/VerdictKt {
+	public static final fun handle (Lverdikt/Verdict;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+}
+

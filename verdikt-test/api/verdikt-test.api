@@ -1,0 +1,74 @@
+public final class verdikt/test/FailureAssertion {
+	public fun <init> (Lverdikt/Failure;)V
+	public final fun message (Ljava/lang/String;)V
+	public final fun messageContains (Ljava/lang/String;)V
+	public final fun messageEndsWith (Ljava/lang/String;)V
+	public final fun messageMatches (Lkotlin/text/Regex;)V
+	public final fun messageStartsWith (Ljava/lang/String;)V
+	public final fun reason (Ljava/lang/Object;)V
+	public final fun ruleName (Ljava/lang/String;)V
+}
+
+public final class verdikt/test/FailuresAssertion {
+	public fun <init> (Ljava/util/List;)V
+	public final fun anyMessageContains (Ljava/lang/String;)V
+	public final fun failures (Lkotlin/jvm/functions/Function1;)V
+	public final fun hasCount (I)V
+	public final fun hasOnlyRules ([Ljava/lang/String;)V
+	public final fun hasRule (Ljava/lang/String;)V
+	public final fun hasRule (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class verdikt/test/FailuresListAssertion {
+	public fun <init> (Ljava/util/List;)V
+	public final fun failure (Lkotlin/jvm/functions/Function1;)V
+}
+
+public final class verdikt/test/RuleAssertionsKt {
+	public static final fun assertFails (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;)V
+	public static final fun assertFails (Lverdikt/Rule;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun assertFails$default (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;ILjava/lang/Object;)V
+	public static final fun assertFailsAsync (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun assertFailsAsync (Lverdikt/Rule;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun assertFailsAsync$default (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun assertPasses (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;)V
+	public static synthetic fun assertPasses$default (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;ILjava/lang/Object;)V
+	public static final fun assertPassesAsync (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun assertPassesAsync$default (Lverdikt/Rule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class verdikt/test/RuleDefinitionAssertionsKt {
+	public static final fun assertFails (Lverdikt/AsyncRule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun assertFails (Lverdikt/AsyncRule;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun assertFails$default (Lverdikt/AsyncRule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun assertPasses (Lverdikt/AsyncRule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun assertPasses$default (Lverdikt/AsyncRule;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class verdikt/test/RuleSetAssertionsKt {
+	public static final fun assertAsyncRuleFails (Lverdikt/RuleSet;Lverdikt/AsyncRule;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun assertAsyncRuleFails (Lverdikt/RuleSet;Lverdikt/AsyncRule;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun assertAsyncRuleFailsOnly (Lverdikt/RuleSet;[Lverdikt/AsyncRule;Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun assertFails (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;)V
+	public static final fun assertFails (Lverdikt/RuleSet;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun assertFails$default (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;ILjava/lang/Object;)V
+	public static final fun assertFailsAsync (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static final fun assertFailsAsync (Lverdikt/RuleSet;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun assertFailsAsync$default (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun assertPasses (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;)V
+	public static synthetic fun assertPasses$default (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;ILjava/lang/Object;)V
+	public static final fun assertPassesAsync (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun assertPassesAsync$default (Lverdikt/RuleSet;Ljava/lang/Object;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static final fun assertRuleFails (Lverdikt/RuleSet;Lverdikt/Rule;Ljava/lang/Object;)V
+	public static final fun assertRuleFails (Lverdikt/RuleSet;Lverdikt/Rule;Ljava/lang/Object;Lkotlin/jvm/functions/Function1;)V
+	public static final fun assertRuleFailsOnly (Lverdikt/RuleSet;[Lverdikt/Rule;Ljava/lang/Object;)V
+}
+
+public final class verdikt/test/VerdictAssertionsKt {
+	public static final fun assertFail (Lverdikt/Verdict;Ljava/lang/String;)V
+	public static final fun assertFail (Lverdikt/Verdict;Lkotlin/jvm/functions/Function1;)V
+	public static synthetic fun assertFail$default (Lverdikt/Verdict;Ljava/lang/String;ILjava/lang/Object;)V
+	public static final fun assertPass (Lverdikt/Verdict;Ljava/lang/String;)V
+	public static synthetic fun assertPass$default (Lverdikt/Verdict;Ljava/lang/String;ILjava/lang/Object;)V
+}
+

@@ -25,4 +25,5 @@ dependencyResolutionManagement {
 rootProject.name = "verdikt"
 include(":core")
 include(":verdikt-test")
+include(":verdikt-engine")
 include(":demo")

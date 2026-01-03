@@ -1,0 +1,116 @@
+public abstract interface class verdikt/engine/AsyncProductionRule {
+	public abstract fun getDescription ()Ljava/lang/String;
+	public abstract fun getInputType ()Lkotlin/reflect/KClass;
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun matches (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun produce (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class verdikt/engine/AsyncProductionRule$DefaultImpls {
+	public static fun getDescription (Lverdikt/engine/AsyncProductionRule;)Ljava/lang/String;
+}
+
+public final class verdikt/engine/DslKt {
+	public static final fun engine (Lkotlin/jvm/functions/Function1;)Lverdikt/engine/Engine;
+}
+
+public abstract interface class verdikt/engine/Engine {
+	public abstract fun getHasAsyncRules ()Z
+	public abstract fun getProductionRuleNames ()Ljava/util/List;
+	public abstract fun getSize ()I
+	public abstract fun getValidationRuleNames ()Ljava/util/List;
+	public abstract fun session ()Lverdikt/engine/Session;
+}
+
+public final class verdikt/engine/EngineBuilder {
+	public fun <init> ()V
+	public final fun getProductionRules ()Ljava/util/List;
+	public final fun getValidationRules ()Ljava/util/List;
+}
+
+public abstract interface annotation class verdikt/engine/EngineDsl : java/lang/annotation/Annotation {
+}
+
+public final class verdikt/engine/EngineResult {
+	public fun <init> (Ljava/util/Set;Ljava/util/Set;Lverdikt/Verdict;II)V
+	public final fun component1 ()Ljava/util/Set;
+	public final fun component2 ()Ljava/util/Set;
+	public final fun component3 ()Lverdikt/Verdict;
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (Ljava/util/Set;Ljava/util/Set;Lverdikt/Verdict;II)Lverdikt/engine/EngineResult;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineResult;Ljava/util/Set;Ljava/util/Set;Lverdikt/Verdict;IIILjava/lang/Object;)Lverdikt/engine/EngineResult;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDerived ()Ljava/util/Set;
+	public final fun getFacts ()Ljava/util/Set;
+	public final fun getFailed ()Z
+	public final fun getIterations ()I
+	public final fun getPassed ()Z
+	public final fun getRuleActivations ()I
+	public final fun getVerdict ()Lverdikt/Verdict;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/engine/InternalProductionRule : verdikt/engine/ProductionRule {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;)V
+	public fun getDescription ()Ljava/lang/String;
+	public fun getInputType ()Lkotlin/reflect/KClass;
+	public fun getName ()Ljava/lang/String;
+	public fun matches (Ljava/lang/Object;)Z
+	public fun produce (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class verdikt/engine/InternalValidationRule {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Lkotlin/reflect/KClass;Lkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function2;Lkotlin/jvm/functions/Function1;)V
+	public final fun evaluate (Ljava/lang/Object;)Z
+	public final fun evaluateAsync (Ljava/lang/Object;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getFailureReason (Ljava/lang/Object;)Ljava/lang/Object;
+	public final fun getInputType ()Lkotlin/reflect/KClass;
+	public final fun getName ()Ljava/lang/String;
+}
+
+public abstract interface class verdikt/engine/ProductionRule {
+	public abstract fun getDescription ()Ljava/lang/String;
+	public abstract fun getInputType ()Lkotlin/reflect/KClass;
+	public abstract fun getName ()Ljava/lang/String;
+	public abstract fun matches (Ljava/lang/Object;)Z
+	public abstract fun produce (Ljava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class verdikt/engine/ProductionRule$DefaultImpls {
+	public static fun getDescription (Lverdikt/engine/ProductionRule;)Ljava/lang/String;
+}
+
+public final class verdikt/engine/ProductionRuleBuilder {
+	public fun <init> (Ljava/lang/String;Lkotlin/reflect/KClass;)V
+	public final fun asyncCondition (Lkotlin/jvm/functions/Function2;)V
+	public final fun asyncOutput (Lkotlin/jvm/functions/Function2;)V
+	public final fun build ()Lverdikt/engine/InternalProductionRule;
+	public final fun condition (Lkotlin/jvm/functions/Function1;)V
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun output (Lkotlin/jvm/functions/Function1;)V
+	public final fun setDescription (Ljava/lang/String;)V
+}
+
+public abstract interface class verdikt/engine/Session {
+	public abstract fun fire ()Lverdikt/engine/EngineResult;
+	public abstract fun fireAsync (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getAllFacts ()Ljava/util/Set;
+	public abstract fun getFacts (Lkotlin/reflect/KClass;)Ljava/util/Set;
+	public abstract fun insert ([Ljava/lang/Object;)V
+	public abstract fun insertAll (Ljava/lang/Iterable;)V
+}
+
+public final class verdikt/engine/ValidationRuleBuilder {
+	public fun <init> (Ljava/lang/String;Lkotlin/reflect/KClass;)V
+	public final fun asyncCondition (Lkotlin/jvm/functions/Function2;)V
+	public final fun build ()Lverdikt/engine/InternalValidationRule;
+	public final fun condition (Lkotlin/jvm/functions/Function1;)V
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun onFailure (Ljava/lang/Object;)V
+	public final fun onFailure (Lkotlin/jvm/functions/Function1;)V
+	public final fun setDescription (Ljava/lang/String;)V
+}
+

@@ -1,6 +1,7 @@
 plugins {
     kotlin("multiplatform")
     `maven-publish`
+    signing
 }
 
 kotlin {
@@ -78,6 +79,32 @@ publishing {
                     url.set("https://block.xyz")
                 }
             }
+
+            scm {
+                url.set("https://github.com/block/verdikt")
+                connection.set("scm:git:git://github.com/block/verdikt.git")
+                developerConnection.set("scm:git:ssh://git@github.com/block/verdikt.git")
+            }
         }
+    }
+
+    repositories {
+        maven {
+            name = "sonatype"
+            url = uri("https://central.sonatype.com/api/v1/publisher/upload")
+            credentials {
+                username = System.getenv("SONATYPE_CENTRAL_USERNAME") ?: ""
+                password = System.getenv("SONATYPE_CENTRAL_PASSWORD") ?: ""
+            }
+        }
+    }
+}
+
+signing {
+    val signingKey = System.getenv("GPG_SECRET_KEY")
+    val signingPassword = System.getenv("GPG_SECRET_PASSPHRASE")
+    if (signingKey != null && signingPassword != null) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+        sign(publishing.publications)
     }
 }

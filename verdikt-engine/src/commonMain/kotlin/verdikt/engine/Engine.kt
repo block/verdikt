@@ -6,7 +6,21 @@ package verdikt.engine
  * An engine contains producers (which derive new facts) and validation rules
  * (which check facts). Use [evaluate] to insert facts and execute rules.
  *
- * Example:
+ * ## Fact Requirements
+ *
+ * Facts should implement `equals()` and `hashCode()` correctly (e.g., use data classes).
+ * The engine uses these methods to:
+ * - Prevent duplicate facts in working memory
+ * - Track which facts have been processed by each rule
+ * - Detect fixpoint (no new facts produced)
+ *
+ * ## Thread Safety
+ *
+ * Engine instances are thread-safe after construction. Multiple threads can call
+ * [evaluate] concurrently on the same engine—each call creates its own internal session.
+ *
+ * ## Example
+ *
  * ```
  * val pricingEngine = engine {
  *     produce<Customer, VipStatus>("vip-check") {

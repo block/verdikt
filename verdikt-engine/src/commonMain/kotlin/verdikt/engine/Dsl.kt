@@ -5,7 +5,7 @@ package verdikt.engine
  * Prevents scope leakage in nested DSL blocks.
  */
 @DslMarker
-public annotation class EngineDsl
+internal annotation class EngineDsl
 
 /**
  * Creates a production rules engine.

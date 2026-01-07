@@ -44,9 +44,6 @@ public final class verdikt/engine/EngineBuilder {
 	public final fun phase (Ljava/lang/String;Lkotlin/jvm/functions/Function1;)V
 }
 
-public abstract interface annotation class verdikt/engine/EngineDsl : java/lang/annotation/Annotation {
-}
-
 public final class verdikt/engine/EngineResult {
 	public fun <init> (Ljava/util/Set;Ljava/util/Set;Lverdikt/Verdict;Ljava/util/Map;II)V
 	public final fun component1 ()Ljava/util/Set;

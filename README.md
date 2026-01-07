@@ -11,6 +11,9 @@ Verdikt provides a clean DSL for defining business rules that evaluate facts and
 dependencies {
     implementation("xyz.block:verdikt-core:0.1.0")
 
+    // Optional: Forward-chaining production rules engine
+    implementation("xyz.block:verdikt-engine:0.1.0")
+
     // Optional: Testing utilities
     testImplementation("xyz.block:verdikt-test:0.1.0")
 }
@@ -255,6 +258,102 @@ val observedRules = myRules.sideEffect { fact, verdict ->
 }
 ```
 
+## Production Rules Engine
+
+The `verdikt-engine` module provides a forward-chaining production rules engine for complex scenarios where rules can derive new facts:
+
+```kotlin
+import verdikt.engine.*
+
+// Define fact types
+data class Customer(val id: String, val totalSpend: Double)
+data class VipStatus(val customerId: String, val tier: String)
+data class Discount(val customerId: String, val percent: Int)
+data class Order(val customerId: String, val amount: Double)
+
+// Create an engine with fact producers and validation rules
+val pricingEngine = engine {
+    // Fact producers derive new facts from existing ones
+    produce<Customer, VipStatus>("vip-check") {
+        description = "Customers who spent over 10k are VIPs"
+        condition { it.totalSpend > 10_000 }
+        output { customer -> VipStatus(customer.id, "gold") }
+    }
+
+    // Rules can chain - VipStatus triggers discount
+    produce<VipStatus, Discount>("vip-discount") {
+        condition { it.tier == "gold" }
+        output { vip -> Discount(vip.customerId, 20) }
+    }
+
+    // Validation rules check facts without producing new ones
+    validate<Order>("minimum-order") {
+        description = "Order must be at least $10"
+        condition { it.amount >= 10.0 }
+        onFailure { order -> "Order amount ${order.amount} is below minimum" }
+    }
+}
+
+// Evaluate - facts are derived automatically via forward chaining
+val result = pricingEngine.evaluate(listOf(customer, order))
+
+// Access derived facts
+val vipStatus = result.derivedOfType<VipStatus>().firstOrNull()
+val discount = result.derivedOfType<Discount>().firstOrNull()
+
+// Check validation verdict
+when (result.verdict) {
+    is Verdict.Pass -> println("All validations passed")
+    is Verdict.Fail -> println("Validation failed: ${result.verdict.messages}")
+}
+```
+
+### Engine Features
+
+**Phased Execution**: Group rules into ordered phases:
+
+```kotlin
+val engine = engine {
+    phase("discounts") {
+        produce<Order, Discount>("bulk-discount") {
+            condition { it.quantity > 100 }
+            output { Discount(it.id, 15) }
+        }
+    }
+
+    phase("taxes") {
+        produce<Order, Tax>("sales-tax") {
+            condition { true }
+            output { Tax(it.id, it.total * 0.08) }
+        }
+    }
+}
+```
+
+**Guards**: Skip rules based on context:
+
+```kotlin
+produce<Order, Discount>("vip-discount") {
+    guard("Customer must be VIP tier") { ctx ->
+        ctx[CustomerTier] in listOf("gold", "platinum")
+    }
+    condition { it.subtotal > 100 }
+    output { Discount(it.id, 10) }
+}
+```
+
+**Async Support**: For rules that need I/O:
+
+```kotlin
+produce<Order, FraudScore>("fraud-check") {
+    asyncCondition { fraudService.shouldCheck(it) }
+    asyncOutput { order -> fraudService.score(order) }
+}
+
+// Use evaluateAsync for engines with async rules
+val result = engine.evaluateAsync(facts)
+```
+
 ## Testing
 
 The `verdikt-test` module provides assertion utilities:
@@ -297,7 +396,7 @@ Verdikt is built with Kotlin Multiplatform and supports:
 
 ## API Reference
 
-### Core Types
+### Core Types (verdikt-core)
 
 | Type | Description |
 |------|-------------|
@@ -307,12 +406,26 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | `Verdict<Reason>` | Sealed interface: `Pass` or `Fail<Reason>` with typed failures |
 | `Failure<Reason>` | Structured failure with rule name and typed reason |
 
+### Engine Types (verdikt-engine)
+
+| Type | Description |
+|------|-------------|
+| `Engine` | Forward-chaining production rules engine |
+| `EngineResult` | Result containing derived facts, validation verdict, and metadata |
+| `FactProducer<In, Out>` | Interface for rules that produce new facts |
+| `Phase` | Named execution phase grouping related rules |
+| `Guard` | Conditional gate that can skip rules based on context |
+| `RuleContext` | Type-safe key-value context for guards |
+| `ContextKey<T>` | Type-safe key for context values |
+
 ### DSL Functions
 
 | Function | Description |
 |----------|-------------|
 | `rules<Fact, Reason> { }` | Creates a rule set with typed failure reasons |
 | `rule<Fact, Reason>(name) { }` | Creates a standalone `Rule<Fact, Reason>` |
+| `engine { }` | Creates a forward-chaining production rules engine |
+| `ruleContext { }` | Creates a type-safe context for guards |
 
 ### RuleSetBuilder
 

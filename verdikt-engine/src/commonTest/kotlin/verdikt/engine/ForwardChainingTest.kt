@@ -16,16 +16,14 @@ class ForwardChainingTest {
 
     @Test
     fun singleProductionRuleDerivesFact() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<Customer, VipStatus>("vip-check") {
                 condition { it.totalSpend > 10_000 }
                 output { VipStatus(it.id, "gold") }
             }
         }
 
-        val session = engine.session()
-        session.insert(Customer("123", 15000.0))
-        val result = session.fire()
+        val result = engine.evaluate(listOf(Customer("123", 15000.0)))
 
         assertEquals(1, result.derived.size)
         val vip = result.derivedOfType<VipStatus>().first()
@@ -35,16 +33,14 @@ class ForwardChainingTest {
 
     @Test
     fun productionRuleDoesNotFireWhenConditionIsFalse() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<Customer, VipStatus>("vip-check") {
                 condition { it.totalSpend > 10_000 }
                 output { VipStatus(it.id, "gold") }
             }
         }
 
-        val session = engine.session()
-        session.insert(Customer("123", 5000.0))
-        val result = session.fire()
+        val result = engine.evaluate(listOf(Customer("123", 5000.0)))
 
         assertEquals(0, result.derived.size)
         assertTrue(result.derivedOfType<VipStatus>().isEmpty())
@@ -52,7 +48,7 @@ class ForwardChainingTest {
 
     @Test
     fun ruleChainingDerivedFactTriggersAnotherRule() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<Customer, VipStatus>("vip-check") {
                 condition { it.totalSpend > 10_000 }
                 output { VipStatus(it.id, "gold") }
@@ -63,9 +59,7 @@ class ForwardChainingTest {
             }
         }
 
-        val session = engine.session()
-        session.insert(Customer("123", 15000.0))
-        val result = session.fire()
+        val result = engine.evaluate(listOf(Customer("123", 15000.0)))
 
         // Should derive both VipStatus and Discount
         assertEquals(2, result.derived.size)
@@ -80,20 +74,18 @@ class ForwardChainingTest {
 
     @Test
     fun multipleInitialFactsAreAllProcessed() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<Customer, VipStatus>("vip-check") {
                 condition { it.totalSpend > 10_000 }
                 output { VipStatus(it.id, "gold") }
             }
         }
 
-        val session = engine.session()
-        session.insert(
+        val result = engine.evaluate(listOf(
             Customer("1", 15000.0),
             Customer("2", 20000.0),
             Customer("3", 5000.0)  // Below threshold
-        )
-        val result = session.fire()
+        ))
 
         val vips = result.derivedOfType<VipStatus>()
         assertEquals(2, vips.size)
@@ -104,7 +96,7 @@ class ForwardChainingTest {
     @Test
     fun sameRuleDoesNotFireTwiceForSameFact() {
         var fireCount = 0
-        val engine = engine<String> {
+        val engine = engine {
             produce<Customer, VipStatus>("vip-check") {
                 condition {
                     fireCount++
@@ -114,9 +106,7 @@ class ForwardChainingTest {
             }
         }
 
-        val session = engine.session()
-        session.insert(Customer("123", 15000.0))
-        session.fire()
+        engine.evaluate(listOf(Customer("123", 15000.0)))
 
         // Rule should only evaluate the customer once
         assertEquals(1, fireCount)
@@ -125,7 +115,7 @@ class ForwardChainingTest {
     @Test
     fun multipleIterationsUntilFixpoint() {
         // Chain: A -> B -> C -> D
-        val engine = engine<String> {
+        val engine = engine {
             produce<String, Int>("a-to-b") {
                 condition { it == "A" }
                 output { 1 }
@@ -140,9 +130,7 @@ class ForwardChainingTest {
             }
         }
 
-        val session = engine.session()
-        session.insert("A")
-        val result = session.fire()
+        val result = engine.evaluate(listOf("A"))
 
         assertEquals(3, result.derived.size)
         assertContains(result.derived, 1)
@@ -153,17 +141,15 @@ class ForwardChainingTest {
 
     @Test
     fun factsContainsBothInitialAndDerived() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<Customer, VipStatus>("vip-check") {
                 condition { it.totalSpend > 10_000 }
                 output { VipStatus(it.id, "gold") }
             }
         }
 
-        val session = engine.session()
         val customer = Customer("123", 15000.0)
-        session.insert(customer)
-        val result = session.fire()
+        val result = engine.evaluate(listOf(customer))
 
         // facts should contain both initial customer and derived VipStatus
         assertEquals(2, result.facts.size)
@@ -173,16 +159,14 @@ class ForwardChainingTest {
 
     @Test
     fun duplicateOutputFactsAreNotAdded() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<String, Int>("always-42") {
                 condition { true }
                 output { 42 }  // Always produces the same value
             }
         }
 
-        val session = engine.session()
-        session.insert("a", "b", "c")
-        val result = session.fire()
+        val result = engine.evaluate(listOf("a", "b", "c"))
 
         // Should only have one 42, not three
         val ints = result.derivedOfType<Int>()
@@ -198,7 +182,7 @@ class ForwardChainingTest {
         data class IntWrapper(val value: Int)
         data class DoubleWrapper(val value: Double)
 
-        val engine = engine<String> {
+        val engine = engine {
             produce<StringWrapper, IntWrapper>("string-to-int") {
                 condition { true }
                 output { IntWrapper(it.value.length) }
@@ -209,9 +193,7 @@ class ForwardChainingTest {
             }
         }
 
-        val session = engine.session()
-        session.insert(StringWrapper("hello"), IntWrapper(100))
-        val result = session.fire()
+        val result = engine.evaluate(listOf(StringWrapper("hello"), IntWrapper(100)))
 
         // StringWrapper rule should fire for "hello" -> IntWrapper(5)
         // IntWrapper rule should fire for 100 -> DoubleWrapper(100.0) and for 5 -> DoubleWrapper(5.0)
@@ -223,17 +205,15 @@ class ForwardChainingTest {
     }
 
     @Test
-    fun insertAllWorksCorrectly() {
-        val engine = engine<String> {
+    fun evaluateWithListWorksCorrectly() {
+        val engine = engine {
             produce<String, Int>("length") {
                 condition { true }
                 output { it.length }
             }
         }
 
-        val session = engine.session()
-        session.insertAll(listOf("a", "bb", "ccc"))
-        val result = session.fire()
+        val result = engine.evaluate(listOf("a", "bb", "ccc"))
 
         val lengths = result.derivedOfType<Int>()
         assertEquals(setOf(1, 2, 3), lengths)
@@ -241,16 +221,14 @@ class ForwardChainingTest {
 
     @Test
     fun ruleActivationsTracksNumberOfRuleFires() {
-        val engine = engine<String> {
+        val engine = engine {
             produce<String, Int>("length") {
                 condition { true }
                 output { it.length }
             }
         }
 
-        val session = engine.session()
-        session.insert("a", "bb", "ccc")
-        val result = session.fire()
+        val result = engine.evaluate(listOf("a", "bb", "ccc"))
 
         assertEquals(3, result.ruleActivations)
     }

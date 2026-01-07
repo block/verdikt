@@ -10,10 +10,10 @@ import kotlinx.coroutines.coroutineScope
  * Create a rule set using the DSL:
  * ```
  * // With typed failure reasons (e.g., enum)
- * val personRules = rules<Person, EligibilityReason> {
+ * val personRules = rules<Person, EligibilityCause> {
  *     rule("name-length-check") {
  *         condition { it.name.length >= 3 }
- *         onFailure { EligibilityReason.NAME_TOO_SHORT }
+ *         onFailure { EligibilityCause.NAME_TOO_SHORT }
  *     }
  * }
  *
@@ -27,9 +27,9 @@ import kotlinx.coroutines.coroutineScope
  * ```
  *
  * @param Fact The type of fact these rules evaluate
- * @param Reason The type of failure reasons returned by rules
+ * @param Cause The type of failure reasons returned by rules
  */
-public interface RuleSet<Fact, out Reason : Any> {
+public interface RuleSet<Fact, out Cause : Any> {
     /**
      * Number of rules in this set.
      */
@@ -43,7 +43,7 @@ public interface RuleSet<Fact, out Reason : Any> {
     /**
      * All rules in this set, in order.
      */
-    public val rules: List<Rule<Fact, Reason>>
+    public val rules: List<Rule<Fact, Cause>>
 
     /**
      * Names of all rules in this set, in order.
@@ -57,7 +57,7 @@ public interface RuleSet<Fact, out Reason : Any> {
      * @throws Exception if any rule's condition throws
      * @return Pass if all rules pass, Fail with all failures otherwise
      */
-    public fun evaluate(fact: Fact): Verdict<Reason>
+    public fun evaluate(fact: Fact): Verdict<Cause>
 
     /**
      * Evaluates all rules, running async conditions concurrently.
@@ -66,21 +66,21 @@ public interface RuleSet<Fact, out Reason : Any> {
      * @throws Exception if any rule's condition throws
      * @return Pass if all rules pass, Fail with all failures otherwise
      */
-    public suspend fun evaluateAsync(fact: Fact): Verdict<Reason>
+    public suspend fun evaluateAsync(fact: Fact): Verdict<Cause>
 
     /**
      * Combines two rule sets into one.
      * Rules from the other set are appended after this set's rules.
      */
-    public operator fun plus(other: RuleSet<Fact, @UnsafeVariance Reason>): RuleSet<Fact, Reason>
+    public operator fun plus(other: RuleSet<Fact, @UnsafeVariance Cause>): RuleSet<Fact, Cause>
 }
 
 /**
  * Internal implementation of RuleSet.
  */
-internal open class RuleSetImpl<Fact, Reason : Any>(
-    internal val internalRules: List<InternalRule<Fact, Reason>>
-) : RuleSet<Fact, Reason> {
+internal open class RuleSetImpl<Fact, Cause : Any>(
+    internal val internalRules: List<InternalRule<Fact, Cause>>
+) : RuleSet<Fact, Cause> {
 
     override val size: Int get() = internalRules.size
 
@@ -88,47 +88,47 @@ internal open class RuleSetImpl<Fact, Reason : Any>(
 
     internal val hasAsyncRules: Boolean get() = internalRules.any { it.isAsync }
 
-    override val rules: List<Rule<Fact, Reason>> get() = internalRules
+    override val rules: List<Rule<Fact, Cause>> get() = internalRules
 
     override val names: List<String> get() = internalRules.map { it.name }
 
-    internal operator fun get(name: String): InternalRule<Fact, Reason>? = internalRules.find { it.name == name }
+    internal operator fun get(name: String): InternalRule<Fact, Cause>? = internalRules.find { it.name == name }
 
-    internal operator fun get(index: Int): InternalRule<Fact, Reason> = internalRules[index]
+    internal operator fun get(index: Int): InternalRule<Fact, Cause> = internalRules[index]
 
-    override fun plus(other: RuleSet<Fact, Reason>): RuleSet<Fact, Reason> {
+    override fun plus(other: RuleSet<Fact, Cause>): RuleSet<Fact, Cause> {
         val otherRules = when (other) {
-            is RuleSetImpl<Fact, Reason> -> other.internalRules
+            is RuleSetImpl<Fact, Cause> -> other.internalRules
             else -> other.names.map { name ->
                 // Fallback for custom implementations - wrap in a simple rule
                 @Suppress("UNCHECKED_CAST")
-                InternalRule<Fact, Reason>(
+                InternalRule<Fact, Cause>(
                     name = name,
                     description = "",
                     condition = { fact -> other.evaluate(fact).passed },
                     asyncCondition = null,
-                    failureReasonFn = { "Rule '$name' failed" as Reason }
+                    failureReasonFn = { "Rule '$name' failed" as Cause }
                 )
             }
         }
         return RuleSetImpl(internalRules + otherRules)
     }
 
-    override fun evaluate(fact: Fact): Verdict<Reason> {
+    override fun evaluate(fact: Fact): Verdict<Cause> {
         check(!hasAsyncRules) {
             "RuleSet contains async rules. Use evaluateAsync() instead."
         }
         return computeVerdict(fact)
     }
 
-    override suspend fun evaluateAsync(fact: Fact): Verdict<Reason> {
+    override suspend fun evaluateAsync(fact: Fact): Verdict<Cause> {
         return computeVerdictAsync(fact)
     }
 
-    private fun computeVerdict(fact: Fact): Verdict<Reason> {
+    private fun computeVerdict(fact: Fact): Verdict<Cause> {
         if (internalRules.isEmpty()) return Verdict.Pass
 
-        val failures = mutableListOf<Failure<Reason>>()
+        val failures = mutableListOf<Failure<Cause>>()
 
         for (rule in internalRules) {
             when (val result = rule.evaluateToVerdict(fact)) {
@@ -144,7 +144,7 @@ internal open class RuleSetImpl<Fact, Reason : Any>(
         }
     }
 
-    private suspend fun computeVerdictAsync(fact: Fact): Verdict<Reason> = coroutineScope {
+    private suspend fun computeVerdictAsync(fact: Fact): Verdict<Cause> = coroutineScope {
         if (internalRules.isEmpty()) return@coroutineScope Verdict.Pass
 
         val results = internalRules.map { rule ->
@@ -152,7 +152,7 @@ internal open class RuleSetImpl<Fact, Reason : Any>(
         }.awaitAll()
 
         val failures = results
-            .filterIsInstance<Verdict.Fail<Reason>>()
+            .filterIsInstance<Verdict.Fail<Cause>>()
             .flatMap { it.failures }
 
         if (failures.isEmpty()) {
@@ -163,7 +163,7 @@ internal open class RuleSetImpl<Fact, Reason : Any>(
     }
 
     internal companion object {
-        fun <Fact, Reason : Any> create(rules: List<InternalRule<Fact, Reason>>): RuleSet<Fact, Reason> = RuleSetImpl(rules)
+        fun <Fact, Cause : Any> create(rules: List<InternalRule<Fact, Cause>>): RuleSet<Fact, Cause> = RuleSetImpl(rules)
     }
 }
 
@@ -180,7 +180,7 @@ internal open class RuleSetImpl<Fact, Reason : Any>(
  * @param verdict The result of evaluating this rule set
  * @return List of rules that failed (empty if verdict is Pass)
  */
-public fun <Fact, Reason : Any> RuleSet<Fact, Reason>.failedRules(verdict: Verdict<Reason>): List<Rule<Fact, Reason>> {
+public fun <Fact, Cause : Any> RuleSet<Fact, Cause>.failedRules(verdict: Verdict<Cause>): List<Rule<Fact, Cause>> {
     val failedNames = when (verdict) {
         is Verdict.Pass -> emptySet()
         is Verdict.Fail -> verdict.failures.map { it.ruleName }.toSet()
@@ -201,7 +201,7 @@ public fun <Fact, Reason : Any> RuleSet<Fact, Reason>.failedRules(verdict: Verdi
  * @param verdict The result of evaluating this rule set
  * @return List of rules that passed
  */
-public fun <Fact, Reason : Any> RuleSet<Fact, Reason>.passedRules(verdict: Verdict<Reason>): List<Rule<Fact, Reason>> {
+public fun <Fact, Cause : Any> RuleSet<Fact, Cause>.passedRules(verdict: Verdict<Cause>): List<Rule<Fact, Cause>> {
     val failedNames = when (verdict) {
         is Verdict.Pass -> emptySet()
         is Verdict.Fail -> verdict.failures.map { it.ruleName }.toSet()

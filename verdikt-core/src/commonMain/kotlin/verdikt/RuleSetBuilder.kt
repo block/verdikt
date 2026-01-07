@@ -4,17 +4,17 @@ package verdikt
  * Builder for constructing a RuleSet.
  *
  * @param Fact The type of fact the rules evaluate
- * @param Reason The type of failure reasons returned by rules
+ * @param Cause The type of failure reasons returned by rules
  */
 @RuleDsl
-public class RuleSetBuilder<Fact, Reason : Any> internal constructor() {
-    private val rules = mutableListOf<InternalRule<Fact, Reason>>()
+public class RuleSetBuilder<Fact, Cause : Any> internal constructor() {
+    private val rules = mutableListOf<InternalRule<Fact, Cause>>()
 
     /**
      * Defines a rule inline within this rule set.
      */
-    public fun rule(name: String, block: RuleBuilder<Fact, Reason>.() -> Unit) {
-        val builder = RuleBuilder<Fact, Reason>(name)
+    public fun rule(name: String, block: RuleBuilder<Fact, Cause>.() -> Unit) {
+        val builder = RuleBuilder<Fact, Cause>(name)
         builder.block()
         rules.add(builder.build())
     }
@@ -36,7 +36,7 @@ public class RuleSetBuilder<Fact, Reason : Any> internal constructor() {
      * }
      * ```
      */
-    public fun add(rule: Rule<Fact, Reason>) {
+    public fun add(rule: Rule<Fact, Cause>) {
         rules.add(rule.toInternalRule())
     }
 
@@ -56,7 +56,7 @@ public class RuleSetBuilder<Fact, Reason : Any> internal constructor() {
      * }
      * ```
      */
-    public fun add(rule: AsyncRule<Fact, Reason>) {
+    public fun add(rule: AsyncRule<Fact, Cause>) {
         rules.add(rule.toInternalRule())
     }
 
@@ -65,9 +65,9 @@ public class RuleSetBuilder<Fact, Reason : Any> internal constructor() {
      * Rules are added in their original order.
      */
     @Suppress("UNCHECKED_CAST")
-    public fun include(ruleSet: RuleSet<Fact, Reason>) {
+    public fun include(ruleSet: RuleSet<Fact, Cause>) {
         when (ruleSet) {
-            is RuleSetImpl<Fact, Reason> -> rules.addAll(ruleSet.internalRules)
+            is RuleSetImpl<Fact, Cause> -> rules.addAll(ruleSet.internalRules)
             else -> {
                 // For custom implementations, add rules by evaluating them
                 ruleSet.names.forEach { name ->
@@ -76,12 +76,12 @@ public class RuleSetBuilder<Fact, Reason : Any> internal constructor() {
                         description = "",
                         condition = { fact -> ruleSet.evaluate(fact).passed },
                         asyncCondition = null,
-                        failureReasonFn = { "Rule '$name' failed" as Reason }
+                        failureReasonFn = { "Rule '$name' failed" as Cause }
                     ))
                 }
             }
         }
     }
 
-    internal fun build(): RuleSet<Fact, Reason> = RuleSetImpl.create(rules.toList())
+    internal fun build(): RuleSet<Fact, Cause> = RuleSetImpl.create(rules.toList())
 }

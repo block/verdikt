@@ -58,11 +58,8 @@ kotlin {
 
 publishing {
     publications.withType<MavenPublication> {
-        // Override artifact ID to be "verdikt" instead of "core"
-        artifactId = artifactId.replace("core", "verdikt")
-
         pom {
-            name.set("Verdikt")
+            name.set("Verdikt Core")
             description.set("A Kotlin Multiplatform library for type-safe rule evaluation")
             url.set("https://github.com/block/verdikt")
 

@@ -1,47 +1,72 @@
 package verdikt.engine
 
 /**
- * A forward-chaining production rules engine.
+ * A forward-chaining rules engine.
  *
- * An engine contains production rules (which derive new facts) and validation rules
- * (which check facts). Use [session] to create a working memory and execute rules.
+ * An engine contains producers (which derive new facts) and validation rules
+ * (which check facts). Use [evaluate] to insert facts and execute rules.
  *
  * Example:
  * ```
- * val pricingEngine = engine<String> {
+ * val pricingEngine = engine {
  *     produce<Customer, VipStatus>("vip-check") {
  *         condition { it.totalSpend > 10_000 }
  *         output { VipStatus(it.id, "gold") }
  *     }
  * }
  *
- * val session = pricingEngine.session()
- * session.insert(customer)
- * val result = session.fire()
+ * val result = pricingEngine.evaluate(listOf(customer))
+ * val vipStatus = result.derivedOfType<VipStatus>().firstOrNull()
  * ```
- *
- * @param Reason The type used for validation failure reasons
  */
-public interface Engine<Reason : Any> {
-    /** Names of all production rules in this engine, in definition order */
-    public val productionRuleNames: List<String>
+public interface Engine {
+    /** All phases in this engine, in execution order */
+    public val phases: List<Phase>
+
+    /** Names of all fact producers in this engine, in definition order */
+    public val factProducerNames: List<String>
 
     /** Names of all validation rules in this engine, in definition order */
     public val validationRuleNames: List<String>
 
-    /** Total number of rules (production + validation) */
+    /** Total number of rules (producers + validation) */
     public val size: Int
 
     /** True if this engine contains any async rules */
     public val hasAsyncRules: Boolean
 
     /**
-     * Creates a new session (working memory) for this engine.
+     * Evaluates facts against this engine's rules synchronously.
      *
-     * Each session is independent - facts inserted in one session do not affect others.
-     * Sessions are not thread-safe; use one session per thread/coroutine.
+     * 1. Inserts facts into working memory
+     * 2. Iterates through production rules until no new facts are produced (fixpoint)
+     * 3. Evaluates all validation rules against working memory
+     * 4. Returns the combined result
      *
-     * @return A new [Session] bound to this engine's rules
+     * @param facts The facts to evaluate
+     * @param context Optional context for guard evaluation. Guards use this context
+     *                to determine if rules should run.
+     * @return The result containing all facts, derived facts, validation verdict, and stats
+     * @throws IllegalStateException if the engine contains async rules (use [evaluateAsync] instead)
      */
-    public fun session(): Session<Reason>
+    public fun evaluate(
+        facts: Collection<Any>,
+        context: RuleContext = RuleContext.EMPTY
+    ): EngineResult
+
+    /**
+     * Evaluates facts against this engine's rules asynchronously.
+     *
+     * Use this when the engine contains rules with async conditions or outputs.
+     * Async rules are executed concurrently where possible.
+     *
+     * @param facts The facts to evaluate
+     * @param context Optional context for guard evaluation. Guards use this context
+     *                to determine if rules should run.
+     * @return The result containing all facts, derived facts, validation verdict, and stats
+     */
+    public suspend fun evaluateAsync(
+        facts: Collection<Any>,
+        context: RuleContext = RuleContext.EMPTY
+    ): EngineResult
 }

@@ -3,25 +3,36 @@ package verdikt.engine
 /**
  * Implementation of [Engine].
  */
-internal class EngineImpl<Reason : Any>(
-    internal val productionRules: List<InternalProductionRule<*, *>>,
-    internal val validationRules: List<InternalValidationRule<*, Reason>>
-) : Engine<Reason> {
+internal class EngineImpl(
+    private val internalPhases: List<PhaseImpl>
+) : Engine {
 
-    override val productionRuleNames: List<String>
-        get() = productionRules.map { it.name }
+    override val phases: List<Phase>
+        get() = internalPhases
+
+    override val factProducerNames: List<String>
+        get() = internalPhases.flatMap { phase -> phase.factProducers.map { it.name } }
 
     override val validationRuleNames: List<String>
-        get() = validationRules.map { it.name }
+        get() = internalPhases.flatMap { phase -> phase.validationRules.map { it.name } }
 
     override val size: Int
-        get() = productionRules.size + validationRules.size
+        get() = internalPhases.sumOf { it.factProducers.size + it.validationRules.size }
 
     override val hasAsyncRules: Boolean
-        get() = productionRules.any { it.isAsync } || validationRules.any { it.isAsync }
+        get() = internalPhases.any { phase ->
+            phase.factProducers.any { it.isAsync } || phase.validationRules.any { it.isAsync }
+        }
 
-    override fun session(): Session<Reason> = SessionImpl(
-        productionRules = productionRules,
-        validationRules = validationRules
-    )
+    override fun evaluate(facts: Collection<Any>, context: RuleContext): EngineResult {
+        val session = SessionImpl(internalPhases, context)
+        session.insertAll(facts)
+        return session.fire()
+    }
+
+    override suspend fun evaluateAsync(facts: Collection<Any>, context: RuleContext): EngineResult {
+        val session = SessionImpl(internalPhases, context)
+        session.insertAll(facts)
+        return session.fireAsync()
+    }
 }

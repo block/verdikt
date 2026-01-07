@@ -4,10 +4,10 @@ package verdikt
  * Builder for constructing a single Rule.
  *
  * @param Fact The type of fact this rule evaluates
- * @param Reason The type of failure reason this rule returns
+ * @param Cause The type of failure reason this rule returns
  */
 @RuleDsl
-public class RuleBuilder<Fact, Reason : Any> internal constructor(private val name: String) {
+public class RuleBuilder<Fact, Cause : Any> internal constructor(private val name: String) {
     /**
      * Human-readable description of what this rule checks.
      * Used in auto-generated failure messages when onFailure is not specified.
@@ -16,7 +16,7 @@ public class RuleBuilder<Fact, Reason : Any> internal constructor(private val na
 
     private var condition: ((Fact) -> Boolean)? = null
     private var asyncCondition: (suspend (Fact) -> Boolean)? = null
-    private var failureReason: ((Fact) -> Reason)? = null
+    private var failureReason: ((Fact) -> Cause)? = null
 
     /**
      * Defines the synchronous condition for this rule.
@@ -41,14 +41,14 @@ public class RuleBuilder<Fact, Reason : Any> internal constructor(private val na
 
     /**
      * Defines the failure reason when this rule doesn't pass.
-     * The reason must match the Reason type parameter of the containing RuleSet.
+     * The reason must match the Cause type parameter of the containing RuleSet.
      *
      * Example with enum:
      * ```
-     * val rules = rules<Person, EligibilityReason> {
+     * val rules = rules<Person, EligibilityCause> {
      *     rule("insufficient-balance") {
      *         condition { it.balance >= minimumRequired }
-     *         onFailure { EligibilityReason.INSUFFICIENT_BALANCE }
+     *         onFailure { EligibilityCause.INSUFFICIENT_BALANCE }
      *     }
      * }
      * ```
@@ -63,30 +63,30 @@ public class RuleBuilder<Fact, Reason : Any> internal constructor(private val na
      * }
      * ```
      *
-     * Optional: If not specified, a default message is generated (requires Reason to be Any).
+     * Optional: If not specified, a default message is generated (requires Cause to be Any).
      */
-    public fun onFailure(block: (Fact) -> Reason) {
+    public fun onFailure(block: (Fact) -> Cause) {
         failureReason = block
     }
 
     /**
      * Defines a static failure reason.
-     * The reason must match the Reason type parameter of the containing RuleSet.
+     * The reason must match the Cause type parameter of the containing RuleSet.
      *
-     * Optional: If not specified, a default message is generated (requires Reason to be Any).
+     * Optional: If not specified, a default message is generated (requires Cause to be Any).
      */
-    public fun onFailure(reason: Reason) {
+    public fun onFailure(reason: Cause) {
         failureReason = { reason }
     }
 
     @Suppress("UNCHECKED_CAST")
-    internal fun build(): InternalRule<Fact, Reason> {
+    internal fun build(): InternalRule<Fact, Cause> {
         requireNotNull(condition) { "Rule '$name' must have a condition or asyncCondition" }
 
         // Generate default failure reason if not provided
-        // This cast is safe when Reason is Any (the default case)
-        val resolvedFailureReason: (Fact) -> Reason = failureReason ?: {
-            (description.ifBlank { "Rule '$name' failed" }) as Reason
+        // This cast is safe when Cause is Any (the default case)
+        val resolvedFailureCause: (Fact) -> Cause = failureReason ?: {
+            (description.ifBlank { "Rule '$name' failed" }) as Cause
         }
 
         return InternalRule(
@@ -94,7 +94,7 @@ public class RuleBuilder<Fact, Reason : Any> internal constructor(private val na
             description = description,
             condition = condition!!,
             asyncCondition = asyncCondition,
-            failureReasonFn = resolvedFailureReason
+            failureReasonFn = resolvedFailureCause
         )
     }
 }

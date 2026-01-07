@@ -9,17 +9,17 @@ class EngineTest {
 
     @Test
     fun emptyEngineHasNoRules() {
-        val engine = engine<String> {}
+        val engine = engine {}
 
         assertEquals(0, engine.size)
-        assertTrue(engine.productionRuleNames.isEmpty())
+        assertTrue(engine.factProducerNames.isEmpty())
         assertTrue(engine.validationRuleNames.isEmpty())
         assertFalse(engine.hasAsyncRules)
     }
 
     @Test
-    fun engineTracksProductionRuleNames() {
-        val engine = engine<String> {
+    fun engineTracksFactProducerNames() {
+        val engine = engine {
             produce<String, Int>("rule-1") {
                 condition { true }
                 output { it.length }
@@ -31,13 +31,13 @@ class EngineTest {
         }
 
         assertEquals(2, engine.size)
-        assertEquals(listOf("rule-1", "rule-2"), engine.productionRuleNames)
+        assertEquals(listOf("rule-1", "rule-2"), engine.factProducerNames)
         assertTrue(engine.validationRuleNames.isEmpty())
     }
 
     @Test
     fun engineTracksValidationRuleNames() {
-        val engine = engine<String> {
+        val engine = engine {
             validate<String>("val-1") {
                 condition { it.isNotBlank() }
                 onFailure { "Cannot be blank" }
@@ -49,13 +49,13 @@ class EngineTest {
         }
 
         assertEquals(2, engine.size)
-        assertTrue(engine.productionRuleNames.isEmpty())
+        assertTrue(engine.factProducerNames.isEmpty())
         assertEquals(listOf("val-1", "val-2"), engine.validationRuleNames)
     }
 
     @Test
-    fun engineCanHaveBothProductionAndValidationRules() {
-        val engine = engine<String> {
+    fun engineCanHaveBothFactProducersAndValidationRules() {
+        val engine = engine {
             produce<String, Int>("prod") {
                 condition { true }
                 output { it.length }
@@ -67,26 +67,24 @@ class EngineTest {
         }
 
         assertEquals(2, engine.size)
-        assertEquals(listOf("prod"), engine.productionRuleNames)
+        assertEquals(listOf("prod"), engine.factProducerNames)
         assertEquals(listOf("val"), engine.validationRuleNames)
     }
 
     @Test
-    fun eachSessionIsIndependent() {
-        val engine = engine<String> {
+    fun eachEvaluationIsIndependent() {
+        val engine = engine {
             produce<String, Int>("length") {
                 condition { true }
                 output { it.length }
             }
         }
 
-        val session1 = engine.session()
-        session1.insert("hello")
+        val result1 = engine.evaluate(listOf("hello"))
+        val result2 = engine.evaluate(listOf("world", "!"))
 
-        val session2 = engine.session()
-        session2.insert("world", "!")
-
-        assertEquals(setOf("hello"), session1.getAllFacts())
-        assertEquals(setOf("world", "!"), session2.getAllFacts())
+        // Each evaluation is independent - derived facts don't leak between calls
+        assertEquals(setOf(5), result1.derivedOfType<Int>())
+        assertEquals(setOf(5, 1), result2.derivedOfType<Int>())
     }
 }

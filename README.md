@@ -9,7 +9,7 @@ Verdikt provides a clean DSL for defining business rules that evaluate facts and
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("xyz.block:verdikt:0.1.0")
+    implementation("xyz.block:verdikt-core:0.1.0")
 
     // Optional: Testing utilities
     testImplementation("xyz.block:verdikt-test:0.1.0")

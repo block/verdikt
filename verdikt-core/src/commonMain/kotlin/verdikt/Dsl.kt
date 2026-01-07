@@ -12,24 +12,24 @@ internal annotation class RuleDsl
  * Use this when you want compile-time type safety for failure reasons:
  *
  * ```
- * val personRules = rules<Person, EligibilityReason> {
+ * val personRules = rules<Person, EligibilityCause> {
  *     rule("name-length-check") {
  *         condition { it.name.length >= 3 }
- *         onFailure { EligibilityReason.NAME_TOO_SHORT }
+ *         onFailure { EligibilityCause.NAME_TOO_SHORT }
  *     }
  * }
  *
  * val verdict = personRules.evaluate(person)
  * if (verdict is Verdict.Fail) {
- *     verdict.failures[0].reason  // typed as EligibilityReason
+ *     verdict.failures[0].reason  // typed as EligibilityCause
  * }
  * ```
  *
  * @param Fact The type of fact the rules evaluate
- * @param Reason The type of failure reasons (must be consistent across all rules)
+ * @param Cause The type of failure reasons (must be consistent across all rules)
  */
-public fun <Fact, Reason : Any> rules(block: RuleSetBuilder<Fact, Reason>.() -> Unit): RuleSet<Fact, Reason> {
-    val builder = RuleSetBuilder<Fact, Reason>()
+public fun <Fact, Cause : Any> rules(block: RuleSetBuilder<Fact, Cause>.() -> Unit): RuleSet<Fact, Cause> {
+    val builder = RuleSetBuilder<Fact, Cause>()
     builder.block()
     return builder.build()
 }
@@ -39,15 +39,15 @@ public fun <Fact, Reason : Any> rules(block: RuleSetBuilder<Fact, Reason>.() -> 
  *
  * Example:
  * ```
- * val nameLengthRule = rule<Person, EligibilityReason>("name-length-check") {
+ * val nameLengthRule = rule<Person, EligibilityCause>("name-length-check") {
  *     description = "Name must be at least 3 characters"
  *     condition { it.name.length >= 3 }
- *     onFailure { EligibilityReason.NAME_TOO_SHORT }
+ *     onFailure { EligibilityCause.NAME_TOO_SHORT }
  * }
  * ```
  */
-public fun <Fact, Reason : Any> rule(name: String, block: RuleBuilder<Fact, Reason>.() -> Unit): Rule<Fact, Reason> {
-    val builder = RuleBuilder<Fact, Reason>(name)
+public fun <Fact, Cause : Any> rule(name: String, block: RuleBuilder<Fact, Cause>.() -> Unit): Rule<Fact, Cause> {
+    val builder = RuleBuilder<Fact, Cause>(name)
     builder.block()
     return builder.build()
 }

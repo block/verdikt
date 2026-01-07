@@ -21,9 +21,9 @@ package verdikt
  *              Inside the block, `this` refers to the original rule for access to name, description, etc.
  * @return A new Rule that wraps this rule and executes the side effect after evaluation.
  */
-public fun <Fact, Reason : Any> Rule<Fact, Reason>.sideEffect(
-    block: Rule<Fact, Reason>.(fact: Fact, passed: Boolean) -> Unit
-): Rule<Fact, Reason> {
+public fun <Fact, Cause : Any> Rule<Fact, Cause>.sideEffect(
+    block: Rule<Fact, Cause>.(fact: Fact, passed: Boolean) -> Unit
+): Rule<Fact, Cause> {
     val original = this
     val internalRule = original.toInternalRule()
 
@@ -71,9 +71,9 @@ public fun <Fact, Reason : Any> Rule<Fact, Reason>.sideEffect(
  * @param block The side effect to execute after evaluation.
  * @return A new RuleSet that wraps this one and executes the side effect after evaluation.
  */
-public fun <Fact, Reason : Any> RuleSet<Fact, Reason>.sideEffect(
-    block: RuleSet<Fact, Reason>.(fact: Fact, verdict: Verdict<Reason>) -> Unit
-): RuleSet<Fact, Reason> {
+public fun <Fact, Cause : Any> RuleSet<Fact, Cause>.sideEffect(
+    block: RuleSet<Fact, Cause>.(fact: Fact, verdict: Verdict<Cause>) -> Unit
+): RuleSet<Fact, Cause> {
     val original = this
     return ObservedRuleSet(original, block)
 }
@@ -81,27 +81,27 @@ public fun <Fact, Reason : Any> RuleSet<Fact, Reason>.sideEffect(
 /**
  * Internal wrapper that adds side effect observation to a RuleSet.
  */
-internal class ObservedRuleSet<Fact, Reason : Any>(
-    private val delegate: RuleSet<Fact, Reason>,
-    private val observer: RuleSet<Fact, Reason>.(fact: Fact, verdict: Verdict<Reason>) -> Unit
-) : RuleSet<Fact, Reason> {
+internal class ObservedRuleSet<Fact, Cause : Any>(
+    private val delegate: RuleSet<Fact, Cause>,
+    private val observer: RuleSet<Fact, Cause>.(fact: Fact, verdict: Verdict<Cause>) -> Unit
+) : RuleSet<Fact, Cause> {
 
     override val size: Int get() = delegate.size
     override val isEmpty: Boolean get() = delegate.isEmpty
-    override val rules: List<Rule<Fact, Reason>> get() = delegate.rules
+    override val rules: List<Rule<Fact, Cause>> get() = delegate.rules
     override val names: List<String> get() = delegate.names
 
-    override fun evaluate(fact: Fact): Verdict<Reason> {
+    override fun evaluate(fact: Fact): Verdict<Cause> {
         val verdict = delegate.evaluate(fact)
         observer(delegate, fact, verdict)
         return verdict
     }
 
-    override suspend fun evaluateAsync(fact: Fact): Verdict<Reason> {
+    override suspend fun evaluateAsync(fact: Fact): Verdict<Cause> {
         val verdict = delegate.evaluateAsync(fact)
         observer(delegate, fact, verdict)
         return verdict
     }
 
-    override fun plus(other: RuleSet<Fact, Reason>): RuleSet<Fact, Reason> = delegate.plus(other)
+    override fun plus(other: RuleSet<Fact, Cause>): RuleSet<Fact, Cause> = delegate.plus(other)
 }

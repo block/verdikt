@@ -8,9 +8,10 @@ import verdikt.Verdict
  * Contains all facts in working memory after execution, the subset that were derived
  * by rules (vs inserted initially), validation results, and execution statistics.
  *
- * @param Reason The type used for validation failure reasons
+ * Since each validation rule can have its own failure type, the verdict uses a star
+ * projection (`Verdict<*>`). Use pattern matching on failure causes when needed.
  */
-public data class EngineResult<Reason : Any>(
+public data class EngineResult(
     /** All facts in working memory after execution (initial + derived) */
     val facts: Set<Any>,
 
@@ -18,7 +19,13 @@ public data class EngineResult<Reason : Any>(
     val derived: Set<Any>,
 
     /** Combined validation verdict from all validation rules */
-    val verdict: Verdict<Reason>,
+    val verdict: Verdict<*>,
+
+    /**
+     * Map of rule names to skip reasons for rules that were skipped due to guard conditions.
+     * Key is the rule name, value is the guard description explaining why it was skipped.
+     */
+    val skipped: Map<String, String>,
 
     /** Number of times rules fired during execution */
     val ruleActivations: Int,

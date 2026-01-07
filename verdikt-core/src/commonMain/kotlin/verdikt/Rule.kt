@@ -1,7 +1,7 @@
 package verdikt
 
 /**
- * A rule that evaluates a fact of type Fact and produces failure reasons of type Reason.
+ * A rule that evaluates a fact of type Fact and produces failure reasons of type Cause.
  *
  * Implement this interface to create reusable rules as classes or objects:
  *
@@ -24,9 +24,9 @@ package verdikt
  * For async rules that perform I/O, implement [AsyncRule] instead.
  *
  * @param Fact The type of fact this rule evaluates
- * @param Reason The type of failure reason this rule produces
+ * @param Cause The type of failure reason this rule produces
  */
-public interface Rule<Fact, out Reason : Any> {
+public interface Rule<Fact, out Cause : Any> {
     /**
      * Unique identifier for this rule.
      */
@@ -54,14 +54,14 @@ public interface Rule<Fact, out Reason : Any> {
      *
      * For typed error codes:
      * ```
-     * override fun failureReason(fact: Person) = IneligibilityReason.NAME_TOO_SHORT
+     * override fun failureReason(fact: Person) = IneligibilityCause.NAME_TOO_SHORT
      * ```
      */
-    public fun failureReason(fact: Fact): Reason
+    public fun failureReason(fact: Fact): Cause
 }
 
 /**
- * An async rule that evaluates a fact of type Fact and produces failure reasons of type Reason.
+ * An async rule that evaluates a fact of type Fact and produces failure reasons of type Cause.
  *
  * Implement this interface when your rule needs to perform I/O operations
  * like database queries or API calls:
@@ -87,9 +87,9 @@ public interface Rule<Fact, out Reason : Any> {
  * ```
  *
  * @param Fact The type of fact this rule evaluates
- * @param Reason The type of failure reason this rule produces
+ * @param Cause The type of failure reason this rule produces
  */
-public interface AsyncRule<Fact, out Reason : Any> {
+public interface AsyncRule<Fact, out Cause : Any> {
     /**
      * Unique identifier for this rule.
      */
@@ -110,20 +110,20 @@ public interface AsyncRule<Fact, out Reason : Any> {
     /**
      * Generates the failure reason when this rule fails.
      */
-    public fun failureReason(fact: Fact): Reason
+    public fun failureReason(fact: Fact): Cause
 }
 
 /**
  * Internal implementation of a rule using lambdas.
  * Created by the DSL and by converting [Rule] and [AsyncRule] instances.
  */
-internal class InternalRule<Fact, Reason : Any>(
+internal class InternalRule<Fact, Cause : Any>(
     override val name: String,
     override val description: String,
     private val condition: (Fact) -> Boolean,
     private val asyncCondition: (suspend (Fact) -> Boolean)?,
-    private val failureReasonFn: (Fact) -> Reason
-) : Rule<Fact, Reason> {
+    private val failureReasonFn: (Fact) -> Cause
+) : Rule<Fact, Cause> {
     /**
      * Returns true if this rule uses an async condition.
      */
@@ -131,12 +131,12 @@ internal class InternalRule<Fact, Reason : Any>(
 
     override fun evaluate(fact: Fact): Boolean = condition(fact)
 
-    override fun failureReason(fact: Fact): Reason = failureReasonFn(fact)
+    override fun failureReason(fact: Fact): Cause = failureReasonFn(fact)
 
     /**
      * Evaluates this rule, returning a Verdict.
      */
-    fun evaluateToVerdict(fact: Fact): Verdict<Reason> {
+    fun evaluateToVerdict(fact: Fact): Verdict<Cause> {
         val passed = condition(fact)
         return if (passed) {
             Verdict.Pass
@@ -148,7 +148,7 @@ internal class InternalRule<Fact, Reason : Any>(
     /**
      * Evaluates this rule asynchronously, returning a Verdict.
      */
-    suspend fun evaluateToVerdictAsync(fact: Fact): Verdict<Reason> {
+    suspend fun evaluateToVerdictAsync(fact: Fact): Verdict<Cause> {
         val passed = asyncCondition?.invoke(fact) ?: condition(fact)
         return if (passed) {
             Verdict.Pass
@@ -162,8 +162,8 @@ internal class InternalRule<Fact, Reason : Any>(
  * Converts a [Rule] to an [InternalRule] for use in rule sets.
  */
 @Suppress("UNCHECKED_CAST")
-internal fun <Fact, Reason : Any> Rule<Fact, Reason>.toInternalRule(): InternalRule<Fact, Reason> = when (this) {
-    is InternalRule<*, *> -> this as InternalRule<Fact, Reason>
+internal fun <Fact, Cause : Any> Rule<Fact, Cause>.toInternalRule(): InternalRule<Fact, Cause> = when (this) {
+    is InternalRule<*, *> -> this as InternalRule<Fact, Cause>
     else -> InternalRule(
         name = name,
         description = description,
@@ -176,7 +176,7 @@ internal fun <Fact, Reason : Any> Rule<Fact, Reason>.toInternalRule(): InternalR
 /**
  * Converts an [AsyncRule] to an [InternalRule] for use in rule sets.
  */
-internal fun <Fact, Reason : Any> AsyncRule<Fact, Reason>.toInternalRule(): InternalRule<Fact, Reason> = InternalRule(
+internal fun <Fact, Cause : Any> AsyncRule<Fact, Cause>.toInternalRule(): InternalRule<Fact, Cause> = InternalRule(
     name = name,
     description = description,
     condition = { error("Async rule '$name' must be evaluated with evaluateAsync()") },

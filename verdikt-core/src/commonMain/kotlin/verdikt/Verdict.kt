@@ -3,9 +3,9 @@ package verdikt
 /**
  * Represents the result of evaluating one or more rules.
  *
- * @param Reason The type of failure reasons contained in this verdict
+ * @param Cause The type of failure reasons contained in this verdict
  */
-public sealed interface Verdict<out Reason : Any> {
+public sealed interface Verdict<out Cause : Any> {
     /**
      * All rules passed.
      */
@@ -15,8 +15,8 @@ public sealed interface Verdict<out Reason : Any> {
      * One or more rules failed.
      * @property failures List of structured failures from each failed rule
      */
-    public data class Fail<out Reason : Any>(val failures: List<Failure<Reason>>) : Verdict<Reason> {
-        public constructor(failure: Failure<Reason>) : this(listOf(failure))
+    public data class Fail<out Cause : Any>(val failures: List<Failure<Cause>>) : Verdict<Cause> {
+        public constructor(failure: Failure<Cause>) : this(listOf(failure))
 
         /**
          * Failure messages as formatted strings (includes rule names).
@@ -50,9 +50,9 @@ public sealed interface Verdict<out Reason : Any> {
  * @param onFail Called with the list of failures when any rule fails
  * @return The result of whichever callback was invoked
  */
-public inline fun <Reason : Any, R> Verdict<Reason>.handle(
+public inline fun <Cause : Any, R> Verdict<Cause>.handle(
     onPass: () -> R,
-    onFail: (List<Failure<Reason>>) -> R
+    onFail: (List<Failure<Cause>>) -> R
 ): R = when (this) {
     is Verdict.Pass -> onPass()
     is Verdict.Fail -> onFail(failures)
@@ -61,7 +61,7 @@ public inline fun <Reason : Any, R> Verdict<Reason>.handle(
 /**
  * Combines this result with another, accumulating failures.
  */
-internal operator fun <Reason : Any> Verdict<Reason>.plus(other: Verdict<Reason>): Verdict<Reason> = when {
+internal operator fun <Cause : Any> Verdict<Cause>.plus(other: Verdict<Cause>): Verdict<Cause> = when {
     this is Verdict.Pass && other is Verdict.Pass -> Verdict.Pass
     this is Verdict.Pass && other is Verdict.Fail -> other
     this is Verdict.Fail && other is Verdict.Pass -> this

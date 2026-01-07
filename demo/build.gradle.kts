@@ -41,7 +41,8 @@ kotlin {
     sourceSets {
         val commonMain by getting {
             dependencies {
-                implementation(project(":core"))
+                implementation(project(":verdikt-core"))
+                implementation(project(":verdikt-engine"))
                 implementation(compose.runtime)
                 implementation(compose.foundation)
                 implementation(compose.material3)

@@ -3,7 +3,7 @@ package verdikt.engine
 import kotlin.reflect.KClass
 
 /**
- * A session represents working memory for rule evaluation.
+ * Internal session representing working memory for rule evaluation.
  *
  * Facts are inserted into the session, then rules are executed via [fire] or [fireAsync].
  * The engine iterates (forward chaining) until no new facts are produced, then
@@ -12,24 +12,15 @@ import kotlin.reflect.KClass
  * Sessions are insert-only: facts cannot be retracted once inserted.
  * Sessions are not thread-safe; use one session per thread/coroutine.
  *
- * Example:
- * ```
- * val session = engine.session()
- * session.insert(customer, order)
- * val result = session.fire()
- *
- * // Check derived facts
- * val vipStatus = result.derivedOfType<VipStatus>().firstOrNull()
- *
- * // Check validation
- * if (result.failed) {
- *     println("Validation failed: ${result.verdict}")
- * }
- * ```
- *
- * @param Reason The type used for validation failure reasons
+ * This is an internal implementation detail. Use [Engine.evaluate] instead.
  */
-public interface Session<Reason : Any> {
+internal interface Session {
+    /**
+     * The evaluation context for this session.
+     * Used by guards to conditionally skip rules based on runtime context.
+     */
+    val context: RuleContext
+
     /**
      * Inserts one or more facts into working memory.
      *
@@ -38,14 +29,14 @@ public interface Session<Reason : Any> {
      *
      * @param facts The facts to insert
      */
-    public fun insert(vararg facts: Any)
+    fun insert(vararg facts: Any)
 
     /**
      * Inserts a collection of facts into working memory.
      *
      * @param facts The facts to insert
      */
-    public fun insertAll(facts: Iterable<Any>)
+    fun insertAll(facts: Iterable<Any>)
 
     /**
      * Executes the engine synchronously.
@@ -57,7 +48,7 @@ public interface Session<Reason : Any> {
      * @return The result containing all facts, derived facts, validation verdict, and stats
      * @throws IllegalStateException if the engine contains async rules (use [fireAsync] instead)
      */
-    public fun fire(): EngineResult<Reason>
+    fun fire(): EngineResult
 
     /**
      * Executes the engine asynchronously.
@@ -67,14 +58,14 @@ public interface Session<Reason : Any> {
      *
      * @return The result containing all facts, derived facts, validation verdict, and stats
      */
-    public suspend fun fireAsync(): EngineResult<Reason>
+    suspend fun fireAsync(): EngineResult
 
     /**
      * Gets all facts currently in working memory.
      *
      * @return An immutable set of all facts
      */
-    public fun getAllFacts(): Set<Any>
+    fun getAllFacts(): Set<Any>
 
     /**
      * Gets facts of a specific type from working memory.
@@ -82,7 +73,7 @@ public interface Session<Reason : Any> {
      * @param T The fact type to retrieve
      * @return An immutable set of facts of the specified type
      */
-    public fun <T : Any> getFacts(type: KClass<T>): Set<T>
+    fun <T : Any> getFacts(type: KClass<T>): Set<T>
 }
 
 /**
@@ -90,4 +81,4 @@ public interface Session<Reason : Any> {
  *
  * Reified version for convenience.
  */
-public inline fun <reified T : Any> Session<*>.getFacts(): Set<T> = getFacts(T::class)
+internal inline fun <reified T : Any> Session.getFacts(): Set<T> = getFacts(T::class)

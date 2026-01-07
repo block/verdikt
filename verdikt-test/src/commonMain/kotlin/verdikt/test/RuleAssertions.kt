@@ -46,8 +46,8 @@ public fun <Fact> Rule<Fact, *>.assertFails(fact: Fact, block: FailureAssertion.
  *
  * Use this for rules created with asyncCondition in the DSL.
  */
-public suspend fun <Fact, Reason : Any> Rule<Fact, Reason>.assertPassesAsync(fact: Fact, message: String? = null) {
-    val ruleSet = rules<Fact, Reason> { add(this@assertPassesAsync) }
+public suspend fun <Fact, Cause : Any> Rule<Fact, Cause>.assertPassesAsync(fact: Fact, message: String? = null) {
+    val ruleSet = rules<Fact, Cause> { add(this@assertPassesAsync) }
     val result = ruleSet.evaluateAsync(fact)
     assertTrue(
         result.passed,
@@ -60,8 +60,8 @@ public suspend fun <Fact, Reason : Any> Rule<Fact, Reason>.assertPassesAsync(fac
  *
  * Use this for rules created with asyncCondition in the DSL.
  */
-public suspend fun <Fact, Reason : Any> Rule<Fact, Reason>.assertFailsAsync(fact: Fact, message: String? = null) {
-    val ruleSet = rules<Fact, Reason> { add(this@assertFailsAsync) }
+public suspend fun <Fact, Cause : Any> Rule<Fact, Cause>.assertFailsAsync(fact: Fact, message: String? = null) {
+    val ruleSet = rules<Fact, Cause> { add(this@assertFailsAsync) }
     val result = ruleSet.evaluateAsync(fact)
     assertTrue(
         !result.passed,
@@ -74,8 +74,8 @@ public suspend fun <Fact, Reason : Any> Rule<Fact, Reason>.assertFailsAsync(fact
  *
  * Use this for rules created with asyncCondition in the DSL.
  */
-public suspend fun <Fact, Reason : Any> Rule<Fact, Reason>.assertFailsAsync(fact: Fact, block: FailureAssertion.() -> Unit) {
-    val ruleSet = rules<Fact, Reason> { add(this@assertFailsAsync) }
+public suspend fun <Fact, Cause : Any> Rule<Fact, Cause>.assertFailsAsync(fact: Fact, block: FailureAssertion.() -> Unit) {
+    val ruleSet = rules<Fact, Cause> { add(this@assertFailsAsync) }
     val result = ruleSet.evaluateAsync(fact)
     if (result.passed) {
         fail("Expected rule '$name' to fail but it passed")

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** Renamed `verdikt` artifact to `verdikt-core` for consistency with `verdikt-engine` and `verdikt-test`
+  - Update your dependencies: `xyz.block:verdikt` → `xyz.block:verdikt-core`
+- **Breaking:** Removed `Cause` type parameter from engine layer - each validation rule now infers its own failure type from `onFailure`
+  - `Engine<Cause>` → `Engine`
+  - `Session<Cause>` → `Session`
+  - `EngineResult<Cause>` → `EngineResult` (verdict is now `Verdict<*>`)
+  - `engine<String> { }` → `engine { }`
+- **Breaking:** Simplified Engine API - replaced `session()` with `evaluate()`
+  - `Session` is now internal (implementation detail)
+  - Old: `val session = engine.session(); session.insert(facts); val result = session.fire()`
+  - New: `val result = engine.evaluate(listOf(facts))`
+  - For async: `val result = engine.evaluateAsync(listOf(facts))`
+  - Context for guards: `engine.evaluate(listOf(facts), context = myContext)`
+
 ## [0.1.0] - 2024-12-31
 
 ### Added

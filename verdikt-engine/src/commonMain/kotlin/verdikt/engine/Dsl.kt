@@ -8,11 +8,14 @@ package verdikt.engine
 public annotation class EngineDsl
 
 /**
- * Creates a production rules engine with the specified failure reason type.
+ * Creates a production rules engine.
+ *
+ * Each validation rule can have its own failure type, which is inferred from the
+ * `onFailure` block. This allows different rules to return different failure types.
  *
  * Example:
  * ```
- * val pricingEngine = engine<String> {
+ * val pricingEngine = engine {
  *     produce<Customer, VipStatus>("vip-check") {
  *         condition { it.totalSpend > 10_000 }
  *         output { VipStatus(it.id, "gold") }
@@ -20,19 +23,23 @@ public annotation class EngineDsl
  *
  *     validate<Order>("valid-quantity") {
  *         condition { it.quantity > 0 }
- *         onFailure { "Invalid quantity: ${it.quantity}" }
+ *         onFailure { "Invalid quantity: ${it.quantity}" }  // Infers String
+ *     }
+ *
+ *     validate<Order>("max-total") {
+ *         condition { it.total < 10000 }
+ *         onFailure { MaxOrderError(it.total) }  // Infers MaxOrderError
  *     }
  * }
  * ```
  *
- * @param Reason The type used for validation failure reasons
  * @param block DSL block to configure the engine
  * @return A configured [Engine] instance
  */
-public fun <Reason : Any> engine(
-    block: EngineBuilder<Reason>.() -> Unit
-): Engine<Reason> {
-    val builder = EngineBuilder<Reason>()
+public fun engine(
+    block: EngineBuilder.() -> Unit
+): Engine {
+    val builder = EngineBuilder()
     builder.block()
     return builder.build()
 }

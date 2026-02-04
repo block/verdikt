@@ -7,7 +7,7 @@ plugins {
 }
 
 apiValidation {
-    ignoredProjects += listOf("demo")
+    ignoredProjects += listOf("demo", "verdikt-benchmark")
 }
 
 allprojects {

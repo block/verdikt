@@ -127,7 +127,12 @@ public class ValidationRuleBuilder<Fact : Any> @PublishedApi internal constructo
 /**
  * Internal implementation of a validation rule.
  *
+ * **This class is an internal implementation detail and should not be used directly.**
+ * It is only visible due to Kotlin's `@PublishedApi` requirement for inline functions.
+ *
  * Failure reasons are stored as `Any` to allow each rule to have its own failure type.
+ *
+ * Use the DSL builder functions like [EngineBuilder.validate] instead.
  */
 @PublishedApi
 internal class InternalValidationRule<Fact : Any>(

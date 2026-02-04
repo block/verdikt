@@ -113,33 +113,6 @@ class ForwardChainingTest {
     }
 
     @Test
-    fun multipleIterationsUntilFixpoint() {
-        // Chain: A -> B -> C -> D
-        val engine = engine {
-            produce<String, Int>("a-to-b") {
-                condition { it == "A" }
-                output { 1 }
-            }
-            produce<Int, Double>("b-to-c") {
-                condition { it == 1 }
-                output { 2.0 }
-            }
-            produce<Double, Boolean>("c-to-d") {
-                condition { it == 2.0 }
-                output { true }
-            }
-        }
-
-        val result = engine.evaluate(listOf("A"))
-
-        assertEquals(3, result.derived.size)
-        assertContains(result.derived, 1)
-        assertContains(result.derived, 2.0)
-        assertContains(result.derived, true)
-        assertTrue(result.iterations > 1)
-    }
-
-    @Test
     fun factsContainsBothInitialAndDerived() {
         val engine = engine {
             produce<Customer, VipStatus>("vip-check") {

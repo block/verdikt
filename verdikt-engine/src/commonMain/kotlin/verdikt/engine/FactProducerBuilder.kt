@@ -43,7 +43,9 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
      * @param block Predicate that returns true if the fact producer should fire
      */
     public fun condition(block: (In) -> Boolean) {
-        require(asyncCondition == null) { "Cannot set both condition and asyncCondition" }
+        require(asyncCondition == null) {
+            "Cannot set both condition and asyncCondition"
+        }
         condition = block
     }
 
@@ -55,7 +57,9 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
      * @param block Suspend predicate that returns true if the fact producer should fire
      */
     public fun asyncCondition(block: suspend (In) -> Boolean) {
-        require(condition == null) { "Cannot set both condition and asyncCondition" }
+        require(condition == null) {
+            "Cannot set both asyncCondition and condition"
+        }
         asyncCondition = block
     }
 
@@ -65,7 +69,9 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
      * @param block Function that creates the output fact from the input
      */
     public fun output(block: (In) -> Out) {
-        require(asyncOutputFn == null) { "Cannot set both output and asyncOutput" }
+        require(asyncOutputFn == null) {
+            "Cannot set both output and asyncOutput"
+        }
         outputFn = block
     }
 
@@ -77,7 +83,9 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
      * @param block Suspend function that creates the output fact from the input
      */
     public fun asyncOutput(block: suspend (In) -> Out) {
-        require(outputFn == null) { "Cannot set both output and asyncOutput" }
+        require(outputFn == null) {
+            "Cannot set both asyncOutput and output"
+        }
         asyncOutputFn = block
     }
 
@@ -108,15 +116,29 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
 
     @PublishedApi
     internal fun build(): InternalFactProducer<In, Out> {
-        val resolvedCondition = condition ?: asyncCondition?.let { async ->
-            { _: In -> error("Async fact producer '$name' must use fireAsync()") }
-        }
-        requireNotNull(resolvedCondition) { "FactProducer '$name' must have a condition or asyncCondition" }
+        // Resolve condition - must have exactly one
+        val hasSimpleCondition = condition != null
+        val hasAsyncCondition = asyncCondition != null
 
-        val resolvedOutput = outputFn ?: asyncOutputFn?.let { async ->
-            { _: In -> error("Async fact producer '$name' must use fireAsync()") }
+        require(hasSimpleCondition || hasAsyncCondition) {
+            "FactProducer '$name' must have a condition or asyncCondition"
         }
-        requireNotNull(resolvedOutput) { "FactProducer '$name' must have an output or asyncOutput" }
+
+        // Resolve output - must have exactly one
+        val hasSimpleOutput = outputFn != null
+        val hasAsyncOutput = asyncOutputFn != null
+
+        require(hasSimpleOutput || hasAsyncOutput) {
+            "FactProducer '$name' must have an output or asyncOutput"
+        }
+
+        // Create fallback condition for sync execution of async producers
+        val resolvedCondition: (In) -> Boolean = condition
+            ?: { _: In -> error("Async fact producer '$name' must use fireAsync()") }
+
+        // Create fallback output for sync execution
+        val resolvedOutputFn: (In) -> Out = outputFn
+            ?: { _: In -> error("Async fact producer '$name' must use fireAsync()") }
 
         return InternalFactProducer(
             name = name,
@@ -126,7 +148,7 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
             inputType = inputType,
             condition = resolvedCondition,
             asyncCondition = asyncCondition,
-            outputFn = resolvedOutput,
+            outputFn = resolvedOutputFn,
             asyncOutputFn = asyncOutputFn
         )
     }
@@ -134,6 +156,11 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
 
 /**
  * Internal implementation of a fact producer.
+ *
+ * **This class is an internal implementation detail and should not be used directly.**
+ * It is only visible due to Kotlin's `@PublishedApi` requirement for inline functions.
+ *
+ * Use the DSL builder functions like [EngineBuilder.produce] instead.
  */
 @PublishedApi
 internal class InternalFactProducer<In : Any, Out : Any>(

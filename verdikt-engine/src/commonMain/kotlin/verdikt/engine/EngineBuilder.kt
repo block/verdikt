@@ -208,7 +208,7 @@ public class EngineBuilder @PublishedApi internal constructor() {
     }
 
     @Suppress("UNCHECKED_CAST")
-    internal fun build(): Engine {
+    internal fun build(config: EngineConfig = EngineConfig.DEFAULT): Engine {
         // Combine explicit phases with rules defined outside phases
         val allPhases = mutableListOf<PhaseImpl>()
 
@@ -224,6 +224,6 @@ public class EngineBuilder @PublishedApi internal constructor() {
         // Add explicit phases (cast from Phase to PhaseImpl - safe because PhaseBuilder creates PhaseImpl)
         allPhases.addAll(phases.map { it as PhaseImpl })
 
-        return EngineImpl(internalPhases = allPhases)
+        return EngineImpl(internalPhases = allPhases, config = config)
     }
 }

@@ -31,7 +31,28 @@ public data class EngineResult(
     val ruleActivations: Int,
 
     /** Number of iterations through the rule network before fixpoint */
-    val iterations: Int
+    val iterations: Int,
+
+    /**
+     * Execution trace showing which rules fired and what they produced.
+     *
+     * Only populated when [EngineConfig.enableTracing] is true. When tracing is disabled,
+     * this list is empty to avoid overhead.
+     *
+     * The trace is ordered chronologically (by when rules fired), respecting priority
+     * ordering within each firing cycle.
+     */
+    val trace: List<RuleActivation> = emptyList(),
+
+    /**
+     * Warnings generated during execution.
+     *
+     * Currently includes:
+     * - Runaway detection: When iterations exceed 100 and rule activations grow
+     *   disproportionately (more than 2x iterations × number of producers), indicating
+     *   possible infinite rule chains.
+     */
+    val warnings: List<String> = emptyList()
 ) {
     /** Get derived facts of a specific type */
     public inline fun <reified T : Any> derivedOfType(): Set<T> =
@@ -49,3 +70,20 @@ public data class EngineResult(
     public val failed: Boolean
         get() = verdict.failed
 }
+
+/**
+ * Record of a single rule activation during engine execution.
+ *
+ * Useful for debugging and understanding why facts were produced.
+ *
+ * @property ruleName The name of the rule that fired
+ * @property inputFact The fact that triggered the rule
+ * @property outputFacts The fact(s) produced by the rule (may be empty if condition matched but produced nothing)
+ * @property priority The priority of the rule when it fired
+ */
+public data class RuleActivation(
+    val ruleName: String,
+    val inputFact: Any,
+    val outputFacts: List<Any>,
+    val priority: Int
+)

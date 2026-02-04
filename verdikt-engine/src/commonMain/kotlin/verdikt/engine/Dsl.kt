@@ -33,13 +33,25 @@ internal annotation class EngineDsl
  * }
  * ```
  *
+ * With custom configuration:
+ * ```
+ * val engine = engine(EngineConfig.create(maxIterations = 10_000, enableTracing = true)) {
+ *     produce<String, Int>("length") {
+ *         condition { true }
+ *         output { it.length }
+ *     }
+ * }
+ * ```
+ *
+ * @param config Configuration for the engine (default: [EngineConfig.DEFAULT])
  * @param block DSL block to configure the engine
  * @return A configured [Engine] instance
  */
 public fun engine(
+    config: EngineConfig = EngineConfig.DEFAULT,
     block: EngineBuilder.() -> Unit
 ): Engine {
     val builder = EngineBuilder()
     builder.block()
-    return builder.build()
+    return builder.build(config)
 }

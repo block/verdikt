@@ -44,14 +44,22 @@ internal class EngineImpl(
             phase.factProducers.any { it.isAsync } || phase.validationRules.any { it.isAsync }
         }
 
-    override fun evaluate(facts: Collection<Any>, context: RuleContext): EngineResult {
-        val session = ReteSessionImpl(processedPhases, compilationResults, config, context)
+    override fun evaluate(
+        facts: Collection<Any>,
+        context: RuleContext,
+        collector: EngineEventCollector
+    ): EngineResult {
+        val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fire()
     }
 
-    override suspend fun evaluateAsync(facts: Collection<Any>, context: RuleContext): EngineResult {
-        val session = ReteSessionImpl(processedPhases, compilationResults, config, context)
+    override suspend fun evaluateAsync(
+        facts: Collection<Any>,
+        context: RuleContext,
+        collector: EngineEventCollector
+    ): EngineResult {
+        val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fireAsync()
     }

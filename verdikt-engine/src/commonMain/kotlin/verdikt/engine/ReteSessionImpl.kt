@@ -28,7 +28,8 @@ internal class ReteSessionImpl(
     private val phases: List<ProcessedPhase>,
     compilationResults: List<CompilationResult>,
     private val config: EngineConfig = EngineConfig.DEFAULT,
-    override val context: RuleContext = RuleContext.EMPTY
+    override val context: RuleContext = RuleContext.EMPTY,
+    private val collector: EngineEventCollector = EngineEventCollector.EMPTY
 ) : Session {
 
     // Extract networks and fallback producers from pre-compiled results
@@ -61,11 +62,19 @@ internal class ReteSessionImpl(
     private var runawayWarningEmitted = false
 
     override fun insert(vararg facts: Any) {
-        workingMemory.addAll(facts.asIterable())
+        for (fact in facts) {
+            if (workingMemory.add(fact)) {
+                collector.collect(EngineEvent.FactInserted(fact, isDerived = false))
+            }
+        }
     }
 
     override fun insertAll(facts: Iterable<Any>) {
-        workingMemory.addAll(facts)
+        for (fact in facts) {
+            if (workingMemory.add(fact)) {
+                collector.collect(EngineEvent.FactInserted(fact, isDerived = false))
+            }
+        }
     }
 
     override fun getAllFacts(): Set<Any> = workingMemory.all()
@@ -91,7 +100,7 @@ internal class ReteSessionImpl(
         // Evaluate validation rules
         val verdict = evaluateValidationRules()
 
-        return EngineResult(
+        val result = EngineResult(
             facts = workingMemory.all(),
             derived = derivedFacts.toSet(),
             verdict = verdict,
@@ -101,6 +110,9 @@ internal class ReteSessionImpl(
             trace = traceEntries?.toList() ?: emptyList(),
             warnings = warnings.toList()
         )
+
+        collector.collect(EngineEvent.Completed(result))
+        return result
     }
 
     private fun executePhase(
@@ -119,6 +131,7 @@ internal class ReteSessionImpl(
             if (guard != null && !guard.allows(context)) {
                 skippedRules[outputNode.ruleName] = guard.description
                 skippedOutputNodes.add(outputNode.id)
+                collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
             }
         }
 
@@ -162,16 +175,24 @@ internal class ReteSessionImpl(
                         derivedFacts.add(output)
                         ruleActivations++
                         addedOutputs.add(output)
+                        collector.collect(EngineEvent.FactInserted(output, isDerived = true))
                         // Propagate new fact through the network (queues more activations)
                         network.activate(output)
                     }
                 }
 
-                // Record trace entry if tracing is enabled
-                if (traceEntries != null && addedOutputs.isNotEmpty()) {
-                    traceEntries.add(RuleActivation(
+                // Record trace entry and emit event if outputs were added
+                if (addedOutputs.isNotEmpty()) {
+                    val inputFact = inputFacts.first()
+                    traceEntries?.add(RuleActivation(
                         ruleName = nodeToFire.ruleName,
-                        inputFact = inputFacts.first(), // For single-fact rules, this is the triggering fact
+                        inputFact = inputFact,
+                        outputFacts = addedOutputs,
+                        priority = nodeToFire.priority
+                    ))
+                    collector.collect(EngineEvent.RuleFired(
+                        ruleName = nodeToFire.ruleName,
+                        inputFact = inputFact,
                         outputFacts = addedOutputs,
                         priority = nodeToFire.priority
                     ))
@@ -215,7 +236,10 @@ internal class ReteSessionImpl(
                 // Check guard
                 val guard = rule.guard
                 if (guard != null && !guard.allows(context)) {
-                    skippedRules[rule.name] = guard.description
+                    if (rule.name !in skippedRules) {
+                        skippedRules[rule.name] = guard.description
+                        collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
+                    }
                     continue
                 }
 
@@ -228,12 +252,19 @@ internal class ReteSessionImpl(
                             ruleActivations++
                             addedOutputs.add(output)
                             newFactsProduced = true
+                            collector.collect(EngineEvent.FactInserted(output, isDerived = true))
                         }
                     }
 
-                    // Record trace entry if tracing is enabled
-                    if (traceEntries != null && addedOutputs.isNotEmpty()) {
-                        traceEntries.add(RuleActivation(
+                    // Record trace entry and emit event if outputs were added
+                    if (addedOutputs.isNotEmpty()) {
+                        traceEntries?.add(RuleActivation(
+                            ruleName = rule.name,
+                            inputFact = inputFact,
+                            outputFacts = addedOutputs,
+                            priority = rule.priority
+                        ))
+                        collector.collect(EngineEvent.RuleFired(
                             ruleName = rule.name,
                             inputFact = inputFact,
                             outputFacts = addedOutputs,
@@ -281,7 +312,10 @@ internal class ReteSessionImpl(
             // Check guard
             val guard = rule.guard
             if (guard != null && !guard.allows(context)) {
-                skippedRules[rule.name] = guard.description
+                if (rule.name !in skippedRules) {
+                    skippedRules[rule.name] = guard.description
+                    collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
+                }
                 continue
             }
 
@@ -290,8 +324,12 @@ internal class ReteSessionImpl(
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
 
-                if (!typedRule.evaluate(fact)) {
-                    failures.add(Failure(rule.name, typedRule.getFailureCause(fact)))
+                if (typedRule.evaluate(fact)) {
+                    collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
+                } else {
+                    val reason = typedRule.getFailureCause(fact)
+                    failures.add(Failure(rule.name, reason))
+                    collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
                 }
             }
         }
@@ -316,7 +354,7 @@ internal class ReteSessionImpl(
         // Evaluate validation rules (async)
         val verdict = evaluateValidationRulesAsync()
 
-        return EngineResult(
+        val result = EngineResult(
             facts = workingMemory.all(),
             derived = derivedFacts.toSet(),
             verdict = verdict,
@@ -326,6 +364,9 @@ internal class ReteSessionImpl(
             trace = traceEntries?.toList() ?: emptyList(),
             warnings = warnings.toList()
         )
+
+        collector.collect(EngineEvent.Completed(result))
+        return result
     }
 
     private suspend fun executePhaseAsync(
@@ -344,6 +385,7 @@ internal class ReteSessionImpl(
             if (guard != null && !guard.allows(context)) {
                 skippedRules[outputNode.ruleName] = guard.description
                 skippedOutputNodes.add(outputNode.id)
+                collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
             }
         }
 
@@ -387,16 +429,24 @@ internal class ReteSessionImpl(
                         derivedFacts.add(output)
                         ruleActivations++
                         addedOutputs.add(output)
+                        collector.collect(EngineEvent.FactInserted(output, isDerived = true))
                         // Propagate new fact through the network (queues more activations)
                         network.activate(output)
                     }
                 }
 
-                // Record trace entry if tracing is enabled
-                if (traceEntries != null && addedOutputs.isNotEmpty()) {
-                    traceEntries.add(RuleActivation(
+                // Record trace entry and emit event if outputs were added
+                if (addedOutputs.isNotEmpty()) {
+                    val inputFact = inputFacts.first()
+                    traceEntries?.add(RuleActivation(
                         ruleName = nodeToFire.ruleName,
-                        inputFact = inputFacts.first(), // For single-fact rules, this is the triggering fact
+                        inputFact = inputFact,
+                        outputFacts = addedOutputs,
+                        priority = nodeToFire.priority
+                    ))
+                    collector.collect(EngineEvent.RuleFired(
+                        ruleName = nodeToFire.ruleName,
+                        inputFact = inputFact,
                         outputFacts = addedOutputs,
                         priority = nodeToFire.priority
                     ))
@@ -439,7 +489,10 @@ internal class ReteSessionImpl(
             for (rule in producers) {
                 val guard = rule.guard
                 if (guard != null && !guard.allows(context)) {
-                    skippedRules[rule.name] = guard.description
+                    if (rule.name !in skippedRules) {
+                        skippedRules[rule.name] = guard.description
+                        collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
+                    }
                     continue
                 }
 
@@ -452,12 +505,19 @@ internal class ReteSessionImpl(
                             ruleActivations++
                             addedOutputs.add(output)
                             newFactsProduced = true
+                            collector.collect(EngineEvent.FactInserted(output, isDerived = true))
                         }
                     }
 
-                    // Record trace entry if tracing is enabled
-                    if (traceEntries != null && addedOutputs.isNotEmpty()) {
-                        traceEntries.add(RuleActivation(
+                    // Record trace entry and emit event if outputs were added
+                    if (addedOutputs.isNotEmpty()) {
+                        traceEntries?.add(RuleActivation(
+                            ruleName = rule.name,
+                            inputFact = inputFact,
+                            outputFacts = addedOutputs,
+                            priority = rule.priority
+                        ))
+                        collector.collect(EngineEvent.RuleFired(
                             ruleName = rule.name,
                             inputFact = inputFact,
                             outputFacts = addedOutputs,
@@ -504,7 +564,10 @@ internal class ReteSessionImpl(
         for (rule in allValidationRules) {
             val guard = rule.guard
             if (guard != null && !guard.allows(context)) {
-                skippedRules[rule.name] = guard.description
+                if (rule.name !in skippedRules) {
+                    skippedRules[rule.name] = guard.description
+                    collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
+                }
                 continue
             }
 
@@ -513,8 +576,12 @@ internal class ReteSessionImpl(
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
 
-                if (!typedRule.evaluateAsync(fact)) {
-                    failures.add(Failure(rule.name, typedRule.getFailureCause(fact)))
+                if (typedRule.evaluateAsync(fact)) {
+                    collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
+                } else {
+                    val reason = typedRule.getFailureCause(fact)
+                    failures.add(Failure(rule.name, reason))
+                    collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
                 }
             }
         }

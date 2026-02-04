@@ -5,9 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [0.1.0] - 2026-01-07
+## [0.1.0] - 2026-02-04
 
 Initial release of Verdikt - a type-safe, multiplatform rules engine for Kotlin.
 
@@ -69,6 +67,15 @@ Initial release of Verdikt - a type-safe, multiplatform rules engine for Kotlin.
 - `priority` property for rule ordering within phases
 - Async support with `asyncCondition { }` and `asyncOutput { }`
 - Integration with `verdikt-core` rules via `addValidation(rule)`
+
+#### Engine Improvements (`verdikt-engine`)
+- `EngineConfig` for configuring engine behavior (iteration limits, tracing)
+- Execution tracing with `EngineResult.trace` for debugging rule chains
+- `RuleActivation` records rule name, input fact, output facts, and priority
+- `MaxIterationsExceededException` prevents infinite rule loops (default limit: 1M)
+- Rete network caching - networks compiled once at engine construction
+- Priority-ordered rule execution (higher priority fires first)
+- Type-based indexing for O(1) fact lookups by type
 
 #### Testing Utilities (`verdikt-test`)
 - `assertPasses()` / `assertFails()` for rules

@@ -157,6 +157,12 @@ when (val verdict = rules.evaluate(fact)) {
 // Convenience properties
 if (verdict.passed) { ... }
 if (verdict.failed) { ... }
+
+// Query failures
+verdict.failureCount              // Number of failures (0 if passed)
+verdict.failedRuleNames           // Names of failed rules
+verdict.hasFailure("rule-name")   // Check if specific rule failed
+verdict.failuresMatching { it.reason is MyError }  // Filter failures
 ```
 
 ### Typed Failure Reasons
@@ -510,6 +516,17 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | `names` | List of rule names |
 | `plus(other)` | Combine two rule sets |
 
+### Verdict Properties and Extensions
+
+| Member | Description |
+|--------|-------------|
+| `passed` | True if verdict is `Pass` |
+| `failed` | True if verdict is `Fail` |
+| `failureCount` | Number of failures (0 if passed) |
+| `failedRuleNames` | List of failed rule names (empty if passed) |
+| `hasFailure(ruleName)` | Check if a specific rule failed |
+| `failuresMatching { }` | Filter failures by predicate |
+
 ### Verdict.Fail Properties
 
 | Property | Description |
@@ -523,6 +540,16 @@ Verdikt is built with Kotlin Multiplatform and supports:
 |--------|-------------|
 | `ruleName` | Name of the failed rule |
 | `reason` | The failure reason (typed as `Reason`) |
+
+### EngineResult Methods
+
+| Method | Description |
+|--------|-------------|
+| `derivedOfType<T>()` | Get derived facts of a specific type |
+| `factsOfType<T>()` | Get all facts of a specific type |
+| `failuresOfType<T>()` | Get failures with a specific cause type |
+| `passed` | True if all validations passed |
+| `failed` | True if any validation failed |
 
 ## License
 

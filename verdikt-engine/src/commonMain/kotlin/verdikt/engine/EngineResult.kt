@@ -1,5 +1,6 @@
 package verdikt.engine
 
+import verdikt.Failure
 import verdikt.Verdict
 
 /**
@@ -69,6 +70,29 @@ public data class EngineResult(
     /** True if any validation rule failed */
     public val failed: Boolean
         get() = verdict.failed
+
+    /**
+     * Get failures with a specific cause type.
+     *
+     * Since validation rules can have different failure types, the verdict uses a star
+     * projection. This method provides type-safe access to failures of a specific type.
+     *
+     * Example:
+     * ```kotlin
+     * sealed class OrderError {
+     *     data class InvalidQuantity(val qty: Int) : OrderError()
+     *     data class InvalidPrice(val price: Double) : OrderError()
+     * }
+     *
+     * val quantityErrors = result.failuresOfType<OrderError.InvalidQuantity>()
+     * ```
+     */
+    @Suppress("UNCHECKED_CAST")
+    public inline fun <reified T : Any> failuresOfType(): List<Failure<T>> =
+        when (val v = verdict) {
+            is Verdict.Pass -> emptyList()
+            is Verdict.Fail -> v.failures.filter { it.reason is T } as List<Failure<T>>
+        }
 }
 
 /**

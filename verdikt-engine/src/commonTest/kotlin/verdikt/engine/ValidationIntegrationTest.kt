@@ -201,4 +201,55 @@ class ValidationIntegrationTest {
         val failure = (result.verdict as Verdict.Fail).failures[0]
         assertEquals("Value must be positive", failure.reason)
     }
+
+    @Test
+    fun failuresOfTypeReturnsEmptyListForPass() {
+        val engine = engine {
+            validate<Int>("positive") {
+                condition { it > 0 }
+                onFailure { _: Int -> "Must be positive" }
+            }
+        }
+
+        val result = engine.evaluate(listOf(1))
+
+        assertTrue(result.passed)
+        assertEquals(emptyList(), result.failuresOfType<String>())
+    }
+
+    @Test
+    fun failuresOfTypeFiltersFailuresByCauseType() {
+        // Define typed error classes
+        data class PriceError(val price: Double)
+        data class QuantityError(val quantity: Int)
+
+        val engine = engine {
+            validate<Product>("positive-price") {
+                condition { it.price > 0 }
+                onFailure { product -> PriceError(product.price) }
+            }
+            validate<Product>("positive-quantity") {
+                condition { it.quantity > 0 }
+                onFailure { product -> QuantityError(product.quantity) }
+            }
+        }
+
+        val result = engine.evaluate(listOf(Product("Widget", -5.0, -2)))
+
+        assertTrue(result.failed)
+
+        // Get only PriceError failures
+        val priceErrors = result.failuresOfType<PriceError>()
+        assertEquals(1, priceErrors.size)
+        assertEquals(-5.0, priceErrors[0].reason.price)
+
+        // Get only QuantityError failures
+        val quantityErrors = result.failuresOfType<QuantityError>()
+        assertEquals(1, quantityErrors.size)
+        assertEquals(-2, quantityErrors[0].reason.quantity)
+
+        // Get non-existent type returns empty
+        val stringErrors = result.failuresOfType<String>()
+        assertEquals(emptyList(), stringErrors)
+    }
 }

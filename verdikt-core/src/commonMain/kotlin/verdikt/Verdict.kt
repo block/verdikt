@@ -35,6 +35,35 @@ public sealed interface Verdict<out Cause : Any> {
     public val failed: Boolean get() = this is Fail
 }
 
+/** Number of failures (0 if passed) */
+public val <Cause : Any> Verdict<Cause>.failureCount: Int
+    get() = when (this) {
+        is Verdict.Pass -> 0
+        is Verdict.Fail -> failures.size
+    }
+
+/** Names of all failed rules (empty list if passed) */
+public val <Cause : Any> Verdict<Cause>.failedRuleNames: List<String>
+    get() = when (this) {
+        is Verdict.Pass -> emptyList()
+        is Verdict.Fail -> failures.map { it.ruleName }
+    }
+
+/** Check if a specific rule failed */
+public fun <Cause : Any> Verdict<Cause>.hasFailure(ruleName: String): Boolean =
+    when (this) {
+        is Verdict.Pass -> false
+        is Verdict.Fail -> failures.any { it.ruleName == ruleName }
+    }
+
+/** Filter failures by predicate */
+public fun <Cause : Any> Verdict<Cause>.failuresMatching(
+    predicate: (Failure<Cause>) -> Boolean
+): List<Failure<Cause>> = when (this) {
+    is Verdict.Pass -> emptyList()
+    is Verdict.Fail -> failures.filter(predicate)
+}
+
 /**
  * Handles the verdict result by invoking the appropriate callback.
  *

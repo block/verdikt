@@ -123,7 +123,7 @@ class EngineEventCollectorTest {
         val engine = engine {
             validate<Item>("positive-price") {
                 condition { it.price > 0 }
-                onFailure { item -> "Price ${item.price} must be positive" }
+                onFailure { "price must be positive" }
             }
         }
 
@@ -135,7 +135,7 @@ class EngineEventCollectorTest {
         assertEquals(1, failedEvents.size)
         assertEquals("positive-price", failedEvents[0].ruleName)
         assertEquals(Item("Widget", -5.0), failedEvents[0].fact)
-        assertEquals("Price -5.0 must be positive", failedEvents[0].reason)
+        assertEquals("price must be positive", failedEvents[0].reason)
     }
 
     @Test

@@ -397,6 +397,54 @@ result.trace.forEach { activation ->
 }
 ```
 
+### Event Collectors
+
+For real-time observability, use an event collector to receive events as they occur during evaluation:
+
+```kotlin
+// Lambda collector
+engine.evaluate(facts) { event ->
+    when (event) {
+        is EngineEvent.FactInserted -> println("Fact: ${event.fact}")
+        is EngineEvent.RuleFired -> println("Rule fired: ${event.ruleName}")
+        is EngineEvent.RuleSkipped -> println("Skipped: ${event.ruleName}")
+        is EngineEvent.ValidationPassed -> println("Passed: ${event.ruleName}")
+        is EngineEvent.ValidationFailed -> println("Failed: ${event.ruleName}")
+        is EngineEvent.Completed -> println("Done: ${event.result.passed}")
+        else -> {}
+    }
+}
+
+// Reusable collector
+object MetricsCollector : EngineEventCollector {
+    override fun collect(event: EngineEvent) {
+        if (event is EngineEvent.RuleFired) {
+            metrics.counter("rule.fired", "rule" to event.ruleName).increment()
+        }
+    }
+}
+
+engine.evaluate(facts, collector = MetricsCollector)
+
+// Combine multiple collectors
+engine.evaluate(facts, collector = CompositeCollector(
+    LoggingCollector,
+    MetricsCollector
+))
+```
+
+**Flow Extension**: For coroutine-based code, use the Flow extension:
+
+```kotlin
+engine.evaluateAsFlow(facts).collect { event ->
+    when (event) {
+        is EngineEvent.RuleFired -> log("Fired: ${event.ruleName}")
+        is EngineEvent.Completed -> return@collect
+        else -> {}
+    }
+}
+```
+
 ### Performance
 
 The engine uses **type-based indexing** for efficient fact lookups. When querying facts by type
@@ -475,6 +523,9 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | `Guard` | Conditional gate that can skip rules based on context |
 | `RuleContext` | Type-safe key-value context for guards |
 | `ContextKey<T>` | Type-safe key for context values |
+| `EngineEvent` | Sealed class for events emitted during evaluation |
+| `EngineEventCollector` | SAM interface for receiving events during evaluation |
+| `CompositeCollector` | Combines multiple collectors into one |
 | `MaxIterationsExceededException` | Thrown when rule execution exceeds configured limit |
 
 ### DSL Functions
@@ -550,6 +601,24 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | `failuresOfType<T>()` | Get failures with a specific cause type |
 | `passed` | True if all validations passed |
 | `failed` | True if any validation failed |
+
+### EngineEvent Types
+
+| Event | Description |
+|-------|-------------|
+| `FactInserted(fact, isDerived)` | A fact was added to working memory |
+| `RuleFired(ruleName, inputFact, outputFacts, priority)` | A production rule fired |
+| `RuleSkipped(ruleName, guardDescription)` | A rule was skipped due to guard |
+| `ValidationPassed(ruleName, fact)` | A validation rule passed |
+| `ValidationFailed(ruleName, fact, reason)` | A validation rule failed |
+| `Completed(result)` | Evaluation completed (always last) |
+
+### Engine Extensions
+
+| Function | Description |
+|----------|-------------|
+| `evaluateAsFlow(facts, context?)` | Returns `Flow<EngineEvent>` for sync evaluation |
+| `evaluateAsyncAsFlow(facts, context?)` | Returns `Flow<EngineEvent>` for async evaluation |
 
 ## License
 

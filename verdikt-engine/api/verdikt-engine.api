@@ -14,6 +14,12 @@ public final class verdikt/engine/AsyncFactProducer$DefaultImpls {
 	public static fun getPriority (Lverdikt/engine/AsyncFactProducer;)I
 }
 
+public final class verdikt/engine/CompositeCollector : verdikt/engine/EngineEventCollector {
+	public fun <init> (Ljava/util/List;)V
+	public fun <init> ([Lverdikt/engine/EngineEventCollector;)V
+	public fun collect (Lverdikt/engine/EngineEvent;)V
+}
+
 public abstract interface class verdikt/engine/ContextKey {
 }
 
@@ -23,8 +29,8 @@ public final class verdikt/engine/DslKt {
 }
 
 public abstract interface class verdikt/engine/Engine {
-	public abstract fun evaluate (Ljava/util/Collection;Lverdikt/engine/RuleContext;)Lverdikt/engine/EngineResult;
-	public abstract fun evaluateAsync (Ljava/util/Collection;Lverdikt/engine/RuleContext;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun evaluate (Ljava/util/Collection;Lverdikt/engine/RuleContext;Lverdikt/engine/EngineEventCollector;)Lverdikt/engine/EngineResult;
+	public abstract fun evaluateAsync (Ljava/util/Collection;Lverdikt/engine/RuleContext;Lverdikt/engine/EngineEventCollector;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getFactProducerNames ()Ljava/util/List;
 	public abstract fun getHasAsyncRules ()Z
 	public abstract fun getPhases ()Ljava/util/List;
@@ -33,8 +39,8 @@ public abstract interface class verdikt/engine/Engine {
 }
 
 public final class verdikt/engine/Engine$DefaultImpls {
-	public static synthetic fun evaluate$default (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;ILjava/lang/Object;)Lverdikt/engine/EngineResult;
-	public static synthetic fun evaluateAsync$default (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun evaluate$default (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;Lverdikt/engine/EngineEventCollector;ILjava/lang/Object;)Lverdikt/engine/EngineResult;
+	public static synthetic fun evaluateAsync$default (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;Lverdikt/engine/EngineEventCollector;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class verdikt/engine/EngineBuilder {
@@ -64,6 +70,107 @@ public final class verdikt/engine/EngineConfig {
 
 public final class verdikt/engine/EngineConfig$Companion {
 	public final fun getDEFAULT ()Lverdikt/engine/EngineConfig;
+}
+
+public abstract class verdikt/engine/EngineEvent {
+}
+
+public final class verdikt/engine/EngineEvent$Completed : verdikt/engine/EngineEvent {
+	public fun <init> (Lverdikt/engine/EngineResult;)V
+	public final fun component1 ()Lverdikt/engine/EngineResult;
+	public final fun copy (Lverdikt/engine/EngineResult;)Lverdikt/engine/EngineEvent$Completed;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineEvent$Completed;Lverdikt/engine/EngineResult;ILjava/lang/Object;)Lverdikt/engine/EngineEvent$Completed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResult ()Lverdikt/engine/EngineResult;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/engine/EngineEvent$FactInserted : verdikt/engine/EngineEvent {
+	public fun <init> (Ljava/lang/Object;Z)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/Object;Z)Lverdikt/engine/EngineEvent$FactInserted;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineEvent$FactInserted;Ljava/lang/Object;ZILjava/lang/Object;)Lverdikt/engine/EngineEvent$FactInserted;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFact ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public final fun isDerived ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/engine/EngineEvent$RuleFired : verdikt/engine/EngineEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/util/List;I)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()I
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;Ljava/util/List;I)Lverdikt/engine/EngineEvent$RuleFired;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineEvent$RuleFired;Ljava/lang/String;Ljava/lang/Object;Ljava/util/List;IILjava/lang/Object;)Lverdikt/engine/EngineEvent$RuleFired;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getInputFact ()Ljava/lang/Object;
+	public final fun getOutputFacts ()Ljava/util/List;
+	public final fun getPriority ()I
+	public final fun getRuleName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/engine/EngineEvent$RuleSkipped : verdikt/engine/EngineEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lverdikt/engine/EngineEvent$RuleSkipped;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineEvent$RuleSkipped;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lverdikt/engine/EngineEvent$RuleSkipped;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGuardDescription ()Ljava/lang/String;
+	public final fun getRuleName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/engine/EngineEvent$ValidationFailed : verdikt/engine/EngineEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun component3 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;)Lverdikt/engine/EngineEvent$ValidationFailed;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineEvent$ValidationFailed;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/Object;ILjava/lang/Object;)Lverdikt/engine/EngineEvent$ValidationFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFact ()Ljava/lang/Object;
+	public final fun getReason ()Ljava/lang/Object;
+	public final fun getRuleName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class verdikt/engine/EngineEvent$ValidationPassed : verdikt/engine/EngineEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lverdikt/engine/EngineEvent$ValidationPassed;
+	public static synthetic fun copy$default (Lverdikt/engine/EngineEvent$ValidationPassed;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lverdikt/engine/EngineEvent$ValidationPassed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFact ()Ljava/lang/Object;
+	public final fun getRuleName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class verdikt/engine/EngineEventCollector {
+	public static final field Companion Lverdikt/engine/EngineEventCollector$Companion;
+	public abstract fun collect (Lverdikt/engine/EngineEvent;)V
+}
+
+public final class verdikt/engine/EngineEventCollector$Companion {
+	public final fun getEMPTY ()Lverdikt/engine/EngineEventCollector;
+}
+
+public final class verdikt/engine/EngineFlowKt {
+	public static final fun evaluateAsFlow (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun evaluateAsFlow$default (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public static final fun evaluateAsyncAsFlow (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun evaluateAsyncAsFlow$default (Lverdikt/engine/Engine;Ljava/util/Collection;Lverdikt/engine/RuleContext;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
 }
 
 public final class verdikt/engine/EngineResult {

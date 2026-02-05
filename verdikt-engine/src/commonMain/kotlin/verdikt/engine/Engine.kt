@@ -60,12 +60,15 @@ public interface Engine {
      * @param facts The facts to evaluate
      * @param context Optional context for guard evaluation. Guards use this context
      *                to determine if rules should run.
+     * @param collector Optional collector to receive events during evaluation.
+     *                  See [EngineEventCollector] for usage examples.
      * @return The result containing all facts, derived facts, validation verdict, and stats
      * @throws IllegalStateException if the engine contains async rules (use [evaluateAsync] instead)
      */
     public fun evaluate(
         facts: Collection<Any>,
-        context: RuleContext = RuleContext.EMPTY
+        context: RuleContext = RuleContext.EMPTY,
+        collector: EngineEventCollector = EngineEventCollector.EMPTY
     ): EngineResult
 
     /**
@@ -77,10 +80,13 @@ public interface Engine {
      * @param facts The facts to evaluate
      * @param context Optional context for guard evaluation. Guards use this context
      *                to determine if rules should run.
+     * @param collector Optional collector to receive events during evaluation.
+     *                  See [EngineEventCollector] for usage examples.
      * @return The result containing all facts, derived facts, validation verdict, and stats
      */
     public suspend fun evaluateAsync(
         facts: Collection<Any>,
-        context: RuleContext = RuleContext.EMPTY
+        context: RuleContext = RuleContext.EMPTY,
+        collector: EngineEventCollector = EngineEventCollector.EMPTY
     ): EngineResult
 }

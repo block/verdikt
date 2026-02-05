@@ -1,22 +1,34 @@
 package verdikt.engine
 
 /**
- * A guard that determines if a rule should run based on context.
+ * A guard that determines if a rule should run based on external context.
  *
- * Guards are checked before a rule's condition is evaluated. If a guard
- * is not satisfied, the rule is skipped and the guard's description
- * explains why.
+ * ## Guard vs Condition
  *
- * Example:
+ * **Guards** gate rule execution based on external context (feature flags, user tiers,
+ * environment settings). They receive a [RuleContext] and are evaluated BEFORE examining
+ * the fact. Use guards for "can this rule run at all?"
+ *
+ * **Conditions** evaluate business logic on the fact itself. They receive the fact and
+ * determine if the rule should fire for this specific input. Use conditions for "should
+ * this rule fire for this fact?"
+ *
+ * ## Example
+ *
  * ```kotlin
- * rule("vip-discount") {
- *     guard("Customer must be VIP tier") { ctx ->
- *         ctx[CustomerTier] in listOf("gold", "platinum")
+ * produce<Order, Discount>("vip-discount") {
+ *     // Guard: context-based gating (runs first)
+ *     guard("Feature flag must be enabled") { ctx ->
+ *         ctx[FeatureFlags].vipDiscountsEnabled
  *     }
- *     condition { it.subtotal > 100 }
- *     onFailure { "Order subtotal too low" }
+ *     // Condition: fact-based logic (runs if guard passes)
+ *     condition { order -> order.subtotal > 100 }
+ *     output { Discount(it.id, it.subtotal * 0.1) }
  * }
  * ```
+ *
+ * If the guard is not satisfied, the rule is skipped entirely and the guard's
+ * description explains why in the trace output.
  */
 public interface Guard {
     /** Human-readable explanation of what this guard requires */

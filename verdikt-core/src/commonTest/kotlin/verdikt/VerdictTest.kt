@@ -108,4 +108,65 @@ class VerdictTest {
         assertEquals("b", result.failures[1].ruleName)
         assertEquals("c", result.failures[2].ruleName)
     }
+
+    @Test
+    fun failureCountReturnsZeroForPass() {
+        assertEquals(0, Verdict.Pass.failureCount)
+    }
+
+    @Test
+    fun failureCountReturnsCountForFail() {
+        val fail = Verdict.Fail(listOf(Failure("a", "1"), Failure("b", "2")))
+        assertEquals(2, fail.failureCount)
+    }
+
+    @Test
+    fun failedRuleNamesReturnsEmptyListForPass() {
+        assertEquals(emptyList(), Verdict.Pass.failedRuleNames)
+    }
+
+    @Test
+    fun failedRuleNamesReturnsRuleNamesForFail() {
+        val fail = Verdict.Fail(listOf(Failure("rule1", "reason1"), Failure("rule2", "reason2")))
+        assertEquals(listOf("rule1", "rule2"), fail.failedRuleNames)
+    }
+
+    @Test
+    fun hasFailureReturnsFalseForPass() {
+        assertFalse(Verdict.Pass.hasFailure("any-rule"))
+    }
+
+    @Test
+    fun hasFailureReturnsTrueWhenRuleMatches() {
+        val fail = Verdict.Fail(listOf(Failure("rule1", "reason1"), Failure("rule2", "reason2")))
+        assertTrue(fail.hasFailure("rule1"))
+        assertTrue(fail.hasFailure("rule2"))
+    }
+
+    @Test
+    fun hasFailureReturnsFalseWhenRuleDoesNotMatch() {
+        val fail = Verdict.Fail(listOf(Failure("rule1", "reason1")))
+        assertFalse(fail.hasFailure("rule2"))
+    }
+
+    @Test
+    fun failuresMatchingReturnsEmptyListForPass() {
+        val result = Verdict.Pass.failuresMatching { true }
+        assertEquals(emptyList(), result)
+    }
+
+    @Test
+    fun failuresMatchingFiltersFailures() {
+        val fail = Verdict.Fail(
+            listOf(
+                Failure("rule1", "error"),
+                Failure("rule2", "warning"),
+                Failure("rule3", "error")
+            )
+        )
+        val errors = fail.failuresMatching { it.reason == "error" }
+        assertEquals(2, errors.size)
+        assertEquals("rule1", errors[0].ruleName)
+        assertEquals("rule3", errors[1].ruleName)
+    }
 }

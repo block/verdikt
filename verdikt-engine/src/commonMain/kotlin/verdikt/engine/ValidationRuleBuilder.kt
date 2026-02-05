@@ -39,7 +39,12 @@ public class ValidationRuleBuilder<Fact : Any> @PublishedApi internal constructo
     private var failureReason: ((Fact) -> Any)? = null
 
     /**
-     * Sets the synchronous condition that must be true for validation to pass.
+     * Sets the condition that determines if this fact is valid.
+     *
+     * Conditions evaluate business logic on the fact itself. They are evaluated
+     * after any guard passes. Return true if the fact is valid, false for a failure.
+     *
+     * See [Guard] for the distinction between guards and conditions.
      *
      * @param block Predicate that returns true if the fact is valid
      */

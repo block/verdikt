@@ -38,9 +38,14 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
     private var asyncOutputFn: (suspend (In) -> Out)? = null
 
     /**
-     * Sets the synchronous condition for when this fact producer should fire.
+     * Sets the condition that determines if this producer should fire for a fact.
      *
-     * @param block Predicate that returns true if the fact producer should fire
+     * Conditions evaluate business logic on the fact itself. They are evaluated
+     * after any guard passes. Return true if the producer should create an output fact.
+     *
+     * See [Guard] for the distinction between guards and conditions.
+     *
+     * @param block Predicate that returns true if the producer should fire
      */
     public fun condition(block: (In) -> Boolean) {
         require(asyncCondition == null) {

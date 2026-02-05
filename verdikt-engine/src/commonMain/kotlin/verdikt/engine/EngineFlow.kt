@@ -21,6 +21,14 @@ import kotlinx.coroutines.flow.callbackFlow
  * }
  * ```
  *
+ * ## Buffer Limitations
+ *
+ * This function uses a buffered channel (default size 64). If the collector processes
+ * events slower than they are produced, events may be dropped once the buffer fills.
+ * For most evaluations this is not an issue, but for very large evaluations or slow
+ * collectors, use [Engine.evaluate] with an [EngineEventCollector] directly to
+ * guarantee all events are delivered.
+ *
  * @param facts The facts to evaluate
  * @param context Optional context for guard evaluation
  * @return A Flow that emits events during evaluation and completes after [EngineEvent.Completed]
@@ -43,6 +51,14 @@ public fun Engine.evaluateAsFlow(
  * Events are emitted as they occur during evaluation, ending with [EngineEvent.Completed].
  *
  * Use this when the engine contains async rules.
+ *
+ * ## Buffer Limitations
+ *
+ * This function uses a buffered channel (default size 64). If the collector processes
+ * events slower than they are produced, events may be dropped once the buffer fills.
+ * For most evaluations this is not an issue, but for very large evaluations or slow
+ * collectors, use [Engine.evaluateAsync] with an [EngineEventCollector] directly to
+ * guarantee all events are delivered.
  *
  * @param facts The facts to evaluate
  * @param context Optional context for guard evaluation

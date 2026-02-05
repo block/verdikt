@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-05
+
+### Added
+
+#### Verdict Convenience Extensions (`verdikt-core`)
+- `failureCount` - number of failures (0 if passed)
+- `failedRuleNames` - list of failed rule names (empty if passed)
+- `hasFailure(ruleName)` - check if a specific rule failed
+- `failuresMatching { }` - filter failures by predicate
+
+#### Engine Event Collector (`verdikt-engine`)
+- `EngineEvent` sealed class with structured event types for real-time observability:
+  - `FactInserted` - a fact was added to working memory
+  - `RuleFired` - a production rule fired and produced new facts
+  - `RuleSkipped` - a rule was skipped due to a guard condition
+  - `ValidationPassed` - a validation rule passed
+  - `ValidationFailed` - a validation rule failed
+  - `Completed` - evaluation finished (always the last event)
+- `EngineEventCollector` SAM interface for receiving events during evaluation
+- `CompositeCollector` for combining multiple collectors
+- `Engine.evaluate(facts, collector = ...)` - optional collector parameter (backward compatible)
+- `Engine.evaluateAsync(facts, collector = ...)` - async variant with collector support
+
+#### Engine Flow Extensions (`verdikt-engine`)
+- `Engine.evaluateAsFlow(facts)` - returns `Flow<EngineEvent>` for sync evaluation
+- `Engine.evaluateAsyncAsFlow(facts)` - returns `Flow<EngineEvent>` for async evaluation
+
+#### Engine Result Improvements (`verdikt-engine`)
+- `EngineResult.failuresOfType<T>()` - type-safe retrieval of failures by cause type
+
+#### Documentation
+- Enhanced Guard KDoc with "Guard vs Condition" distinction
+- Documented Flow buffer limitations for event delivery
+- Documented exception propagation behavior in `EngineEventCollector`
+
 ## [0.1.0] - 2026-02-04
 
 Initial release of Verdikt - a type-safe, multiplatform rules engine for Kotlin.
@@ -97,5 +132,6 @@ Initial release of Verdikt - a type-safe, multiplatform rules engine for Kotlin.
 - Initial release of Verdikt
 - Pre-1.0 API may have breaking changes in future versions
 
-[Unreleased]: https://github.com/block/verdikt/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/block/verdikt/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/block/verdikt/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/block/verdikt/releases/tag/v0.1.0

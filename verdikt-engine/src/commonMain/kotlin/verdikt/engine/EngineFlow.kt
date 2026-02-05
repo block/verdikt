@@ -1,6 +1,5 @@
 package verdikt.engine
 
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
@@ -41,7 +40,6 @@ public fun Engine.evaluateAsFlow(
         trySend(event)
     }
     close()
-    awaitClose()
 }
 
 /**
@@ -72,5 +70,4 @@ public fun Engine.evaluateAsyncAsFlow(
         trySend(event)
     }
     close()
-    awaitClose()
 }

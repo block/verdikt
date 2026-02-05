@@ -42,6 +42,10 @@ public fun interface EngineEventCollector {
     /**
      * Called when an event occurs during engine evaluation.
      *
+     * Exceptions thrown by this method will propagate and abort the evaluation.
+     * Implementations should handle exceptions internally if they want evaluation
+     * to continue after a failure.
+     *
      * @param event The event that occurred
      */
     public fun collect(event: EngineEvent)

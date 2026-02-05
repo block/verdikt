@@ -4,10 +4,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-data class Item(val name: String, val price: Double)
-data class Discount(val itemName: String, val amount: Double)
-
 class EngineEventCollectorTest {
+
+    data class Item(val name: String, val price: Double)
+    data class Discount(val itemName: String, val amount: Double)
 
     @Test
     fun collectorReceivesFactInsertedEventsForInitialFacts() {

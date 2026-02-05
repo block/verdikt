@@ -109,6 +109,10 @@ public final class verdikt/Verdict$Pass : verdikt/Verdict {
 }
 
 public final class verdikt/VerdictKt {
+	public static final fun failuresMatching (Lverdikt/Verdict;Lkotlin/jvm/functions/Function1;)Ljava/util/List;
+	public static final fun getFailedRuleNames (Lverdikt/Verdict;)Ljava/util/List;
+	public static final fun getFailureCount (Lverdikt/Verdict;)I
 	public static final fun handle (Lverdikt/Verdict;Lkotlin/jvm/functions/Function0;Lkotlin/jvm/functions/Function1;)Ljava/lang/Object;
+	public static final fun hasFailure (Lverdikt/Verdict;Ljava/lang/String;)Z
 }
 

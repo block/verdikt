@@ -129,9 +129,11 @@ internal class ReteSessionImpl(
             val producer = phase.factProducers.find { it.name == outputNode.ruleName }
             val guard = producer?.guard
             if (guard != null && !guard.allows(context)) {
-                skippedRules[outputNode.ruleName] = guard.description
+                if (outputNode.ruleName !in skippedRules) {
+                    skippedRules[outputNode.ruleName] = guard.description
+                    collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
+                }
                 skippedOutputNodes.add(outputNode.id)
-                collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
             }
         }
 
@@ -383,9 +385,11 @@ internal class ReteSessionImpl(
             val producer = phase.factProducers.find { it.name == outputNode.ruleName }
             val guard = producer?.guard
             if (guard != null && !guard.allows(context)) {
-                skippedRules[outputNode.ruleName] = guard.description
+                if (outputNode.ruleName !in skippedRules) {
+                    skippedRules[outputNode.ruleName] = guard.description
+                    collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
+                }
                 skippedOutputNodes.add(outputNode.id)
-                collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
             }
         }
 

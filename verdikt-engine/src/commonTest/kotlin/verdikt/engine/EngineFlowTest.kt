@@ -60,4 +60,26 @@ class EngineFlowTest {
         assertEquals(1, completed.result.derivedOfType<DerivedFact>().size)
         assertEquals(DerivedFact(10), completed.result.derivedOfType<DerivedFact>().first())
     }
+
+    @Test
+    fun evaluateAsyncAsFlowEmitsEvents() = runTest {
+        val engine = engine {
+            produce<TestFact, DerivedFact>("async-double") {
+                asyncCondition { true }
+                asyncOutput { DerivedFact(it.value * 2) }
+            }
+        }
+
+        val events = engine.evaluateAsyncAsFlow(listOf(TestFact(5))).toList()
+
+        // Should have: FactInserted(initial), FactInserted(derived), RuleFired, Completed
+        assertTrue(events.any { it is EngineEvent.FactInserted && !it.isDerived })
+        assertTrue(events.any { it is EngineEvent.FactInserted && it.isDerived })
+        assertTrue(events.any { it is EngineEvent.RuleFired })
+        assertTrue(events.any { it is EngineEvent.Completed })
+
+        val completed = events.filterIsInstance<EngineEvent.Completed>().single()
+        assertTrue(completed.result.passed)
+        assertEquals(DerivedFact(10), completed.result.derivedOfType<DerivedFact>().first())
+    }
 }

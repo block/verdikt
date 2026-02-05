@@ -611,7 +611,6 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | `RuleSkipped(ruleName, guardDescription)` | A rule was skipped due to guard |
 | `ValidationPassed(ruleName, fact)` | A validation rule passed |
 | `ValidationFailed(ruleName, fact, reason)` | A validation rule failed |
-| `IterationComplete(iteration, totalFacts, newFacts)` | An iteration completed |
 | `Completed(result)` | Evaluation completed (always last) |
 
 ### Engine Extensions

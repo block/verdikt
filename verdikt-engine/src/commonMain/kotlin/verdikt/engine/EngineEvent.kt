@@ -65,15 +65,6 @@ public sealed class EngineEvent {
     ) : EngineEvent()
 
     /**
-     * An iteration of the rule network completed.
-     */
-    public data class IterationComplete(
-        val iterationNumber: Int,
-        val totalFactCount: Int,
-        val newFactsThisIteration: Int
-    ) : EngineEvent()
-
-    /**
      * Engine evaluation completed.
      *
      * This is always the last event emitted.

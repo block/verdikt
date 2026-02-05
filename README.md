@@ -9,13 +9,13 @@ Verdikt provides a clean DSL for defining business rules that evaluate facts and
 ```kotlin
 // build.gradle.kts
 dependencies {
-    implementation("xyz.block:verdikt-core:0.1.0")
+    implementation("xyz.block:verdikt-core:0.2.0")
 
     // Optional: Forward-chaining production rules engine
-    implementation("xyz.block:verdikt-engine:0.1.0")
+    implementation("xyz.block:verdikt-engine:0.2.0")
 
     // Optional: Testing utilities
-    testImplementation("xyz.block:verdikt-test:0.1.0")
+    testImplementation("xyz.block:verdikt-test:0.2.0")
 }
 ```
 
@@ -51,7 +51,7 @@ when (verdict) {
 
 ## Stability
 
-Verdikt is currently pre-1.0 (version 0.1.0). The core API is stable and well-tested, but breaking changes may occur before version 1.0. All changes are documented in [CHANGELOG.md](CHANGELOG.md).
+Verdikt is currently pre-1.0 (version 0.2.0). The core API is stable and well-tested, but breaking changes may occur before version 1.0. All changes are documented in [CHANGELOG.md](CHANGELOG.md).
 
 ## Core Concepts
 

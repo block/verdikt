@@ -13,7 +13,7 @@ import verdikt.engine.engine
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(BenchmarkTimeUnit.MILLISECONDS)
-open class RuleChainingBenchmark {
+open class PropagationDepthBenchmark {
 
     // Chain of derived facts: Level0 -> Level1 -> Level2 -> ... -> LevelN
     data class Level0(val id: String, val value: Int)

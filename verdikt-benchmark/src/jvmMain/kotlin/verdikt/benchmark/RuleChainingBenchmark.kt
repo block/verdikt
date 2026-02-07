@@ -6,8 +6,9 @@ import verdikt.engine.engine
 /**
  * Benchmarks rule chaining performance with varying chain depths.
  *
- * Tests forward-chaining where one rule's output triggers the next.
- * Type-based indexing improves each iteration of the fixpoint loop.
+ * Tests forward-chaining where one rule's derived output is fed back into
+ * the RETE network and propagated to downstream alpha nodes. Each chain
+ * level adds an incremental propagation cycle through the network.
  */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)

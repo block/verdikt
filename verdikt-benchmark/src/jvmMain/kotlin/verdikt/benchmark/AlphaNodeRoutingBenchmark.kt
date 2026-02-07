@@ -6,13 +6,14 @@ import verdikt.engine.engine
 /**
  * Benchmarks type filtering performance with varying fact counts.
  *
- * This tests the core performance bottleneck: filtering working memory by type.
- * With type-based indexing, this should be O(1) instead of O(n).
+ * Each rule compiles to a RETE alpha node that receives only facts matching
+ * its input type. This measures the cost of alpha node routing — inserting
+ * facts into the network and dispatching them to the correct alpha memories.
  */
 @State(Scope.Benchmark)
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(BenchmarkTimeUnit.MILLISECONDS)
-open class TypeFilterBenchmark {
+open class AlphaNodeRoutingBenchmark {
 
     // Fact types for benchmarking
     data class Customer(val id: String, val totalSpend: Double)

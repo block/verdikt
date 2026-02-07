@@ -26,8 +26,11 @@ internal class OutputNode<Out : Any>(
     override val successors: MutableList<ReteNode> = mutableListOf()
 ) : ReteNode {
 
-    /** Tracks which input combinations have already fired */
-    private val firedFor = mutableSetOf<List<Any>>()
+    /** Tracks which single-fact inputs have already fired (avoids List wrapper allocation) */
+    private val firedForSingle = mutableSetOf<Any>()
+
+    /** Tracks which multi-fact input combinations have already fired */
+    private val firedForMulti = mutableSetOf<List<Any>>()
 
     /** Pending activations waiting to be fired (for priority ordering) */
     private val pendingActivations = mutableListOf<List<Any>>()
@@ -35,22 +38,28 @@ internal class OutputNode<Out : Any>(
     /** Callback to insert produced facts into working memory */
     var onProduce: ((Out) -> Unit)? = null
 
+    /** Reference to parent network for pending activation counting */
+    internal var network: ReteNetwork? = null
+
+    /** Whether this node is skipped due to guards (avoids Set lookup in hot loop) */
+    internal var isSkipped: Boolean = false
+
     override fun leftActivate(token: Token<*>) {
-        queueActivation(listOf(token.fact))
+        val fact = token.fact
+        // Fast dedup using Set<Any> instead of Set<List<Any>>
+        if (fact in firedForSingle) return
+        firedForSingle.add(fact)
+        val factList = listOf(fact)
+        pendingActivations.add(factList)
+        network?.let { it.pendingActivationCount++ }
     }
 
     override fun leftActivate(token: JoinedToken) {
-        queueActivation(token.facts)
-    }
-
-    /**
-     * Queue an activation for later firing (supports priority ordering).
-     */
-    private fun queueActivation(facts: List<Any>) {
-        // Prevent re-firing for same input combination
-        if (facts in firedFor) return
-        firedFor.add(facts)
+        val facts = token.facts
+        if (facts in firedForMulti) return
+        firedForMulti.add(facts)
         pendingActivations.add(facts)
+        network?.let { it.pendingActivationCount++ }
     }
 
     /**
@@ -72,22 +81,19 @@ internal class OutputNode<Out : Any>(
     fun firePendingWithInputs(): List<Pair<List<Any>, List<Out>>> {
         if (pendingActivations.isEmpty()) return emptyList()
 
-        val results = mutableListOf<Pair<List<Any>, List<Out>>>()
+        val results = ArrayList<Pair<List<Any>, List<Out>>>(pendingActivations.size)
         val callback = onProduce
 
         for (facts in pendingActivations) {
-            // Produce output
             val output = producer(facts)
-            val outputs = listOfNotNull(output)
-
+            val outputs = if (output != null) listOf(output) else emptyList()
             results.add(facts to outputs)
-
-            // Also invoke callback for backward compatibility
             if (callback != null && output != null) {
                 callback(output)
             }
         }
 
+        network?.let { it.pendingActivationCount -= pendingActivations.size }
         pendingActivations.clear()
         return results
     }
@@ -105,18 +111,25 @@ internal class OutputNode<Out : Any>(
     /**
      * Check if this node has fired for a given input combination.
      */
-    fun hasFiredFor(facts: List<Any>): Boolean = facts in firedFor
+    fun hasFiredFor(facts: List<Any>): Boolean {
+        if (facts.size == 1) return facts.first() in firedForSingle
+        return facts in firedForMulti
+    }
 
     /**
      * Get the number of times this node has fired.
      */
-    fun fireCount(): Int = firedFor.size
+    fun fireCount(): Int = firedForSingle.size + firedForMulti.size
 
     /**
      * Reset the fired state and pending activations (for testing or session reset).
+     * Note: Does NOT adjust network.pendingActivationCount — caller (ReteNetwork.reset())
+     * zeroes the counter directly before calling this.
      */
     fun reset() {
-        firedFor.clear()
+        firedForSingle.clear()
+        firedForMulti.clear()
         pendingActivations.clear()
+        isSkipped = false
     }
 }

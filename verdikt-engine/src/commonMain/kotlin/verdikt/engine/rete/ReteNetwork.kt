@@ -33,6 +33,9 @@ internal class ReteNetwork(
     val betaNodes: List<BetaNode<*>>,
     val outputNodes: List<OutputNode<*>>
 ) {
+    /** Counter tracking total pending activations across all output nodes. O(1) check. */
+    internal var pendingActivationCount: Int = 0
+
     /**
      * Activate a fact through all applicable alpha nodes.
      *
@@ -43,23 +46,26 @@ internal class ReteNetwork(
      * @param fact The fact to activate
      * @return true if any alpha node accepted the fact
      */
+    @Suppress("UNCHECKED_CAST")
     fun activate(fact: Any): Boolean {
         var activated = false
 
-        // Find alpha nodes that accept this fact's type
+        // Find alpha nodes that accept this fact's exact type
         val factClass = fact::class
         val nodes = alphaNodes[factClass]
 
         if (nodes != null) {
+            // Use activateTyped fast-path: type is already guaranteed by exact-match dispatch
             for (alphaNode in nodes) {
-                if (alphaNode.activate(fact)) {
+                if ((alphaNode as AlphaNode<Any>).activateTyped(fact)) {
                     activated = true
                 }
             }
         }
 
-        // Also check for interface/supertype matches
-        // This is less efficient but necessary for polymorphic rules
+        // Also check for interface/supertype matches.
+        // This handles polymorphic rules AND Kotlin/JS where runtime class
+        // for primitives may not match the compile-time KClass in the map.
         for ((type, typeNodes) in alphaNodes) {
             if (type != factClass && type.isInstance(fact)) {
                 for (alphaNode in typeNodes) {
@@ -104,10 +110,9 @@ internal class ReteNetwork(
     }
 
     /**
-     * Check if any output nodes have pending activations.
+     * Check if any output nodes have pending activations. O(1) via counter.
      */
-    fun hasPendingActivations(): Boolean =
-        outputNodes.any { it.hasPendingActivations() }
+    fun hasPendingActivations(): Boolean = pendingActivationCount > 0
 
     /**
      * Get statistics about the network.
@@ -124,6 +129,7 @@ internal class ReteNetwork(
      * Reset all node memories (for session reset).
      */
     fun reset() {
+        pendingActivationCount = 0
         for (nodes in alphaNodes.values) {
             for (node in nodes) {
                 node.memory.clear()

@@ -44,8 +44,14 @@ internal class AlphaNode<In : Any>(
         if (!inputType.isInstance(fact)) return false
 
         @Suppress("UNCHECKED_CAST")
-        val typedFact = fact as In
+        return activateTyped(fact as In)
+    }
 
+    /**
+     * Fast-path activation when the type is already guaranteed (e.g., exact-match dispatch).
+     * Skips the isInstance check and avoids Token wrapper allocation for single-fact rules.
+     */
+    fun activateTyped(typedFact: In): Boolean {
         // Already processed?
         if (memory.contains(typedFact)) return false
 

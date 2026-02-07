@@ -51,6 +51,11 @@ internal class IndexedWorkingMemory {
     fun all(): Set<Any> = allFacts.toSet()
 
     /**
+     * Get a snapshot of all facts as a single List copy (avoids double-copy of all().toList()).
+     */
+    fun snapshot(): List<Any> = allFacts.toList()
+
+    /**
      * Get all facts of the specified type.
      *
      * If the exact type is indexed, this is O(1). If not (querying by supertype),

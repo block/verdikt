@@ -52,6 +52,10 @@ internal class ReteCompiler {
         }
 
         val network = ReteNetwork(alphaNodes, betaNodes, outputNodes)
+        // Wire output nodes to network for pending activation counting
+        for (node in outputNodes) {
+            node.network = network
+        }
         return CompilationResult(network, fallbackProducers)
     }
 

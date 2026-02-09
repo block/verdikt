@@ -172,10 +172,10 @@ internal class ReteSessionImpl(
             val nodeToFire = findNextFirableNode(network)
 
             if (nodeToFire == null) {
-                // Only skipped nodes have pending activations - clear them
+                // Only skipped nodes have pending activations - clear them without firing
                 for (node in network.outputNodes) {
                     if (node.isSkipped && node.hasPendingActivations()) {
-                        node.firePending()
+                        node.clearPending()
                     }
                 }
                 break
@@ -315,7 +315,7 @@ internal class ReteSessionImpl(
         val processedForRule = processedFacts.getOrPut(rule.name) { mutableSetOf() }
         val results = mutableListOf<Pair<Any, List<Out>>>()
 
-        val matchingFacts = workingMemory.filterByType(rule.inputType)
+        val matchingFacts = workingMemory.ofType(rule.inputType).toList()
             .filter { it !in processedForRule }
 
         for (fact in matchingFacts) {
@@ -346,7 +346,7 @@ internal class ReteSessionImpl(
                 continue
             }
 
-            val matchingFacts = workingMemory.filterByType(rule.inputType)
+            val matchingFacts = workingMemory.ofType(rule.inputType).toList()
 
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
@@ -435,10 +435,10 @@ internal class ReteSessionImpl(
             val nodeToFire = findNextFirableNode(network)
 
             if (nodeToFire == null) {
-                // Only skipped nodes have pending activations - clear them
+                // Only skipped nodes have pending activations - clear them without firing
                 for (node in network.outputNodes) {
                     if (node.isSkipped && node.hasPendingActivations()) {
-                        node.firePending()
+                        node.clearPending()
                     }
                 }
                 break
@@ -577,7 +577,7 @@ internal class ReteSessionImpl(
         val processedForRule = processedFacts.getOrPut(rule.name) { mutableSetOf() }
         val results = mutableListOf<Pair<Any, List<Out>>>()
 
-        val matchingFacts = workingMemory.filterByType(rule.inputType)
+        val matchingFacts = workingMemory.ofType(rule.inputType).toList()
             .filter { it !in processedForRule }
 
         for (fact in matchingFacts) {
@@ -608,7 +608,7 @@ internal class ReteSessionImpl(
                 continue
             }
 
-            val matchingFacts = workingMemory.filterByType(rule.inputType)
+            val matchingFacts = workingMemory.ofType(rule.inputType).toList()
 
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>

@@ -294,6 +294,27 @@ class ReteIntegrationTest {
         assertTrue(result.trace.isEmpty())
     }
 
+    // Polymorphic test domain classes
+    interface HasName { val name: String }
+    data class Employee(override val name: String, val dept: String) : HasName
+    data class NameTag(val label: String)
+
+    @Test
+    fun polymorphicRulesMatchSubtypes() {
+        val engine = engine {
+            produce<HasName, NameTag>("name-tag") {
+                condition { it.name.isNotBlank() }
+                output { NameTag("Hello, ${it.name}") }
+            }
+        }
+
+        val result = engine.evaluate(listOf(Employee("Alice", "Engineering")))
+
+        assertEquals(1, result.derived.size)
+        val tag = result.derivedOfType<NameTag>().first()
+        assertEquals("Hello, Alice", tag.label)
+    }
+
     @Test
     fun warningsFieldExists() {
         val engine = engine {

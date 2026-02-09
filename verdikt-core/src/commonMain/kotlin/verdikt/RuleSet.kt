@@ -99,17 +99,7 @@ internal open class RuleSetImpl<Fact, Cause : Any>(
     override fun plus(other: RuleSet<Fact, Cause>): RuleSet<Fact, Cause> {
         val otherRules = when (other) {
             is RuleSetImpl<Fact, Cause> -> other.internalRules
-            else -> other.names.map { name ->
-                // Fallback for custom implementations - wrap in a simple rule
-                @Suppress("UNCHECKED_CAST")
-                InternalRule<Fact, Cause>(
-                    name = name,
-                    description = "",
-                    condition = { fact -> other.evaluate(fact).passed },
-                    asyncCondition = null,
-                    failureReasonFn = { "Rule '$name' failed" as Cause }
-                )
-            }
+            else -> other.rules.map { it.toInternalRule() }
         }
         return RuleSetImpl(internalRules + otherRules)
     }

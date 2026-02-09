@@ -205,13 +205,54 @@ class RuleSetTest {
     }
 
     @Test
-    fun ruleSetAllowsDuplicateRuleNames() {
-        val ruleSet = rules<Person, String> {
-            rule("same-name") { condition { true } }
-            rule("same-name") { condition { false } }
+    fun duplicateRuleNamesThrow() {
+        assertFailsWith<IllegalArgumentException> {
+            rules<Person, String> {
+                rule("same-name") { condition { true } }
+                rule("same-name") { condition { false } }
+            }
+        }
+    }
+
+    @Test
+    fun plusWithStandardRuleSetPreservesIndividualRuleEvaluation() {
+        val rules1 = rules<Person, String> {
+            rule("email-check") {
+                condition { "@" in it.email }
+                onFailure { "Invalid email" }
+            }
+        }
+        val rules2 = rules<Person, String> {
+            rule("score-check") {
+                condition { it.score >= 100 }
+                onFailure { "Score too low" }
+            }
+            rule("name-check") {
+                condition { it.name.isNotBlank() }
+                onFailure { "Name is blank" }
+            }
         }
 
-        assertEquals(2, ruleSet.size)
-        assertEquals(listOf("same-name", "same-name"), ruleSet.names)
+        val combined = rules1 + rules2
+
+        // Person with blank name but valid score and email should fail only name-check
+        val result = combined.evaluate(Person("", 150, "test@example.com"))
+        assertIs<Verdict.Fail<String>>(result)
+        assertEquals(1, result.failures.size)
+        assertEquals("name-check", result.failures[0].ruleName)
+    }
+
+    @Test
+    fun duplicateRuleNameViaIncludeThrows() {
+        val existingRules = rules<Person, String> {
+            rule("score-check") { condition { true } }
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            rules<Person, String> {
+                rule("score-check") { condition { true } }
+                include(existingRules)
+            }
+        }
     }
 }

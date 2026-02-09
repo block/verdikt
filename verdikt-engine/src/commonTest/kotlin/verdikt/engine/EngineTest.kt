@@ -2,6 +2,7 @@ package verdikt.engine
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
@@ -69,6 +70,84 @@ class EngineTest {
         assertEquals(2, engine.size)
         assertEquals(listOf("prod"), engine.factProducerNames)
         assertEquals(listOf("val"), engine.validationRuleNames)
+    }
+
+    @Test
+    fun duplicateProducerNamesInPhaseThrow() {
+        assertFailsWith<IllegalArgumentException> {
+            engine {
+                phase("test") {
+                    produce<String, Int>("same-name") {
+                        condition { true }
+                        output { 1 }
+                    }
+                    produce<String, Int>("same-name") {
+                        condition { true }
+                        output { 2 }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun duplicateValidationNamesInPhaseThrow() {
+        assertFailsWith<IllegalArgumentException> {
+            engine {
+                phase("test") {
+                    validate<String>("same-name") {
+                        condition { true }
+                        onFailure { "fail1" }
+                    }
+                    validate<String>("same-name") {
+                        condition { true }
+                        onFailure { "fail2" }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun duplicateProducerAndValidationNameInPhaseThrow() {
+        assertFailsWith<IllegalArgumentException> {
+            engine {
+                phase("test") {
+                    produce<String, Int>("same-name") {
+                        condition { true }
+                        output { 1 }
+                    }
+                    validate<String>("same-name") {
+                        condition { true }
+                        onFailure { "fail" }
+                    }
+                }
+            }
+        }
+    }
+
+    object AdminKey : ContextKey<Boolean>
+
+    @Test
+    fun guardedRuleProducerNeverExecutesWhenGuardBlocks() {
+        var producerCallCount = 0
+
+        val engine = engine {
+            produce<String, Int>("guarded-rule") {
+                guard("requires-admin") { ctx -> ctx[AdminKey] == true }
+                condition { true }
+                output {
+                    producerCallCount++
+                    it.length
+                }
+            }
+        }
+
+        val result = engine.evaluate(listOf("hello", "world"))
+
+        assertEquals(0, producerCallCount, "Producer should never be called when guard blocks")
+        assertTrue(result.skipped.containsKey("guarded-rule"))
+        assertTrue(result.derived.isEmpty())
     }
 
     @Test

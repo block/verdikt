@@ -123,6 +123,19 @@ internal class OutputNode<Out : Any>(
     }
 
     /**
+     * Discard all pending activations without firing the producer.
+     * Used when a guard blocks execution — prevents side effects.
+     */
+    fun clearPending() {
+        val totalSize = pendingSingleFacts.size + pendingMultiActivations.size
+        if (totalSize > 0) {
+            network?.let { it.pendingActivationCount -= totalSize }
+            pendingSingleFacts.clear()
+            pendingMultiActivations.clear()
+        }
+    }
+
+    /**
      * Check if there are pending activations.
      */
     fun hasPendingActivations(): Boolean = pendingSingleFacts.isNotEmpty() || pendingMultiActivations.isNotEmpty()

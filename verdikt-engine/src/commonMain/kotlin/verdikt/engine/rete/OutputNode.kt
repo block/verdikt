@@ -32,8 +32,14 @@ internal class OutputNode<Out : Any>(
     /** Tracks which multi-fact input combinations have already fired */
     private val firedForMulti = mutableSetOf<List<Any>>()
 
-    /** Pending activations waiting to be fired (for priority ordering) */
-    private val pendingActivations = mutableListOf<List<Any>>()
+    /** Pending single-fact activations waiting to be fired */
+    private val pendingSingleFacts = mutableListOf<Any>()
+
+    /** Pending multi-fact activations waiting to be fired */
+    private val pendingMultiActivations = mutableListOf<List<Any>>()
+
+    /** Reusable single-element list for producer calls (avoid per-fact allocation) */
+    private val reusableSingleFactList = ArrayList<Any>(1).apply { add(Unit) }
 
     /** Callback to insert produced facts into working memory */
     var onProduce: ((Out) -> Unit)? = null
@@ -44,21 +50,23 @@ internal class OutputNode<Out : Any>(
     /** Whether this node is skipped due to guards (avoids Set lookup in hot loop) */
     internal var isSkipped: Boolean = false
 
-    override fun leftActivate(token: Token<*>) {
-        val fact = token.fact
-        // Fast dedup using Set<Any> instead of Set<List<Any>>
+    override fun leftActivateFact(fact: Any) {
         if (fact in firedForSingle) return
         firedForSingle.add(fact)
-        val factList = listOf(fact)
-        pendingActivations.add(factList)
+        pendingSingleFacts.add(fact)
         network?.let { it.pendingActivationCount++ }
+    }
+
+    override fun leftActivate(token: Token<*>) {
+        // Delegate to fact-based activation
+        leftActivateFact(token.fact)
     }
 
     override fun leftActivate(token: JoinedToken) {
         val facts = token.facts
         if (facts in firedForMulti) return
         firedForMulti.add(facts)
-        pendingActivations.add(facts)
+        pendingMultiActivations.add(facts)
         network?.let { it.pendingActivationCount++ }
     }
 
@@ -69,6 +77,7 @@ internal class OutputNode<Out : Any>(
      * @return List of all outputs produced by this firing
      */
     fun firePending(): List<Out> {
+        if (pendingSingleFacts.isEmpty() && pendingMultiActivations.isEmpty()) return emptyList()
         return firePendingWithInputs().flatMap { it.second }
     }
 
@@ -79,12 +88,26 @@ internal class OutputNode<Out : Any>(
      * @return List of (inputFacts, outputs) pairs for each activation
      */
     fun firePendingWithInputs(): List<Pair<List<Any>, List<Out>>> {
-        if (pendingActivations.isEmpty()) return emptyList()
+        if (pendingSingleFacts.isEmpty() && pendingMultiActivations.isEmpty()) return emptyList()
 
-        val results = ArrayList<Pair<List<Any>, List<Out>>>(pendingActivations.size)
+        val totalSize = pendingSingleFacts.size + pendingMultiActivations.size
+        val results = ArrayList<Pair<List<Any>, List<Out>>>(totalSize)
         val callback = onProduce
+        val reusable = reusableSingleFactList
 
-        for (facts in pendingActivations) {
+        // Fire single-fact pending
+        for (fact in pendingSingleFacts) {
+            reusable[0] = fact
+            val output = producer(reusable)
+            val outputs = if (output != null) listOf(output) else emptyList()
+            results.add(listOf(fact) to outputs)
+            if (callback != null && output != null) {
+                callback(output)
+            }
+        }
+
+        // Fire multi-fact pending
+        for (facts in pendingMultiActivations) {
             val output = producer(facts)
             val outputs = if (output != null) listOf(output) else emptyList()
             results.add(facts to outputs)
@@ -93,20 +116,21 @@ internal class OutputNode<Out : Any>(
             }
         }
 
-        network?.let { it.pendingActivationCount -= pendingActivations.size }
-        pendingActivations.clear()
+        network?.let { it.pendingActivationCount -= totalSize }
+        pendingSingleFacts.clear()
+        pendingMultiActivations.clear()
         return results
     }
 
     /**
      * Check if there are pending activations.
      */
-    fun hasPendingActivations(): Boolean = pendingActivations.isNotEmpty()
+    fun hasPendingActivations(): Boolean = pendingSingleFacts.isNotEmpty() || pendingMultiActivations.isNotEmpty()
 
     /**
      * Get the number of pending activations.
      */
-    fun pendingCount(): Int = pendingActivations.size
+    fun pendingCount(): Int = pendingSingleFacts.size + pendingMultiActivations.size
 
     /**
      * Check if this node has fired for a given input combination.
@@ -123,13 +147,14 @@ internal class OutputNode<Out : Any>(
 
     /**
      * Reset the fired state and pending activations (for testing or session reset).
-     * Note: Does NOT adjust network.pendingActivationCount — caller (ReteNetwork.reset())
+     * Note: Does NOT adjust network.pendingActivationCount -- caller (ReteNetwork.reset())
      * zeroes the counter directly before calling this.
      */
     fun reset() {
         firedForSingle.clear()
         firedForMulti.clear()
-        pendingActivations.clear()
+        pendingSingleFacts.clear()
+        pendingMultiActivations.clear()
         isSkipped = false
     }
 }

@@ -1,62 +1,48 @@
 package verdikt.engine.rete
 
 /**
- * Stores tokens that passed an alpha node's condition test.
+ * Stores facts that passed an alpha node's condition test.
  *
  * Alpha memory provides:
  * - De-duplication: Each fact is stored at most once
  * - Fast lookup: O(1) containment check
- * - Enumeration: Iterate all stored tokens for beta node joins
+ * - Enumeration: Iterate all stored facts for beta node joins
  *
  * @param T The type of facts stored in this memory
  */
 internal class AlphaMemory<T : Any> {
-    private val tokens = mutableMapOf<T, Token<T>>()
+    private val facts = mutableSetOf<T>()
 
     /**
-     * Add a token to memory.
-     * @return true if the token was added (fact was not already present)
+     * Add a fact to memory.
+     * @return true if the fact was added (not already present)
      */
-    fun add(token: Token<T>): Boolean {
-        if (token.fact in tokens) return false
-        tokens[token.fact] = token
-        return true
-    }
+    fun add(fact: T): Boolean = facts.add(fact)
 
     /**
      * Check if a fact is already in memory.
      */
-    fun contains(fact: T): Boolean = fact in tokens
-
-    /**
-     * Get the token for a specific fact.
-     */
-    fun get(fact: T): Token<T>? = tokens[fact]
-
-    /**
-     * Get all stored tokens.
-     */
-    fun all(): Collection<Token<T>> = tokens.values
+    fun contains(fact: T): Boolean = fact in facts
 
     /**
      * Get all stored facts.
      */
-    fun allFacts(): Collection<T> = tokens.keys
+    fun allFacts(): Collection<T> = facts
 
     /**
-     * Number of tokens in memory.
+     * Number of facts in memory.
      */
-    fun size(): Int = tokens.size
+    fun size(): Int = facts.size
 
     /**
      * Check if memory is empty.
      */
-    fun isEmpty(): Boolean = tokens.isEmpty()
+    fun isEmpty(): Boolean = facts.isEmpty()
 
     /**
-     * Clear all tokens from memory.
+     * Clear all facts from memory.
      */
     fun clear() {
-        tokens.clear()
+        facts.clear()
     }
 }

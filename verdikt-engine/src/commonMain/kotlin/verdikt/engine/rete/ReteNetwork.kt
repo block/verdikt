@@ -36,6 +36,9 @@ internal class ReteNetwork(
     /** Counter tracking total pending activations across all output nodes. O(1) check. */
     internal var pendingActivationCount: Int = 0
 
+    /** Cache of polymorphic (supertype/interface) alpha nodes per fact class. */
+    private val polymorphicNodeCache = mutableMapOf<KClass<*>, List<AlphaNode<*>>>()
+
     /**
      * Activate a fact through all applicable alpha nodes.
      *
@@ -66,13 +69,19 @@ internal class ReteNetwork(
         // Also check for interface/supertype matches.
         // This handles polymorphic rules AND Kotlin/JS where runtime class
         // for primitives may not match the compile-time KClass in the map.
-        for ((type, typeNodes) in alphaNodes) {
-            if (type != factClass && type.isInstance(fact)) {
-                for (alphaNode in typeNodes) {
-                    if (alphaNode.activate(fact)) {
-                        activated = true
+        val polyNodes = polymorphicNodeCache.getOrPut(factClass) {
+            buildList {
+                for ((type, typeNodes) in alphaNodes) {
+                    if (type != factClass && type.isInstance(fact)) {
+                        addAll(typeNodes)
                     }
                 }
+            }
+        }
+
+        for (alphaNode in polyNodes) {
+            if (alphaNode.activate(fact)) {
+                activated = true
             }
         }
 

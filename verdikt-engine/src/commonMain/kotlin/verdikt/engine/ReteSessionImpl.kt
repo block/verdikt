@@ -184,20 +184,31 @@ internal class ReteSessionImpl(
             val activationsWithOutputs = nodeToFire.firePendingWithInputs()
 
             for ((inputFacts, outputs) in activationsWithOutputs) {
-                val addedOutputs = mutableListOf<Any>()
+                var firstAdded: Any? = null
+                var extraAdded: MutableList<Any>? = null
 
                 for (output in outputs) {
                     if (workingMemory.add(output)) {
                         derivedFacts.add(output)
                         ruleActivations++
-                        addedOutputs.add(output)
+                        if (firstAdded == null) {
+                            firstAdded = output
+                        } else {
+                            if (extraAdded == null) extraAdded = mutableListOf()
+                            extraAdded.add(output)
+                        }
                         if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
                         network.activate(output)
                     }
                 }
 
-                if (addedOutputs.isNotEmpty()) {
+                if (firstAdded != null) {
                     val inputFact = inputFacts.first()
+                    val addedOutputs = if (extraAdded != null) {
+                        buildList { add(firstAdded); addAll(extraAdded) }
+                    } else {
+                        listOf(firstAdded)
+                    }
                     traceEntries?.add(RuleActivation(
                         ruleName = nodeToFire.ruleName,
                         inputFact = inputFact,
@@ -436,20 +447,31 @@ internal class ReteSessionImpl(
             val activationsWithOutputs = nodeToFire.firePendingWithInputs()
 
             for ((inputFacts, outputs) in activationsWithOutputs) {
-                val addedOutputs = mutableListOf<Any>()
+                var firstAdded: Any? = null
+                var extraAdded: MutableList<Any>? = null
 
                 for (output in outputs) {
                     if (workingMemory.add(output)) {
                         derivedFacts.add(output)
                         ruleActivations++
-                        addedOutputs.add(output)
+                        if (firstAdded == null) {
+                            firstAdded = output
+                        } else {
+                            if (extraAdded == null) extraAdded = mutableListOf()
+                            extraAdded.add(output)
+                        }
                         if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
                         network.activate(output)
                     }
                 }
 
-                if (addedOutputs.isNotEmpty()) {
+                if (firstAdded != null) {
                     val inputFact = inputFacts.first()
+                    val addedOutputs = if (extraAdded != null) {
+                        buildList { add(firstAdded); addAll(extraAdded) }
+                    } else {
+                        listOf(firstAdded)
+                    }
                     traceEntries?.add(RuleActivation(
                         ruleName = nodeToFire.ruleName,
                         inputFact = inputFact,

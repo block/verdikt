@@ -78,8 +78,6 @@ internal class ReteNetwork(
                     }
                 }
             }
-            // Thread-safe: concurrent writes produce identical deterministic values.
-            // Map reference replacement is atomic on all KMP targets.
             polymorphicNodeCache = cached + (factClass to computed)
             computed
         }

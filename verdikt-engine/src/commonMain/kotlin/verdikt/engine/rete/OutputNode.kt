@@ -38,7 +38,12 @@ internal class OutputNode<Out : Any>(
     /** Pending multi-fact activations waiting to be fired */
     private val pendingMultiActivations = mutableListOf<List<Any>>()
 
-    /** Reusable single-element list for producer calls (avoid per-fact allocation) */
+    /**
+     * Reusable single-element list for producer calls (avoids per-fact allocation).
+     * IMPORTANT: This list is mutated in-place between calls. The producer lambda
+     * (created in ReteCompiler) MUST extract values immediately via facts.first()
+     * and must NOT retain a reference to this list.
+     */
     private val reusableSingleFactList = ArrayList<Any>(1).apply { add(Unit) }
 
     /** Callback to insert produced facts into working memory */

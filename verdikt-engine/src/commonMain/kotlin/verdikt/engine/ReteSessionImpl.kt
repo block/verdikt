@@ -115,7 +115,7 @@ internal class ReteSessionImpl(
             warnings = warnings.toList()
         )
 
-        collector.collect(EngineEvent.Completed(result))
+        if (collectEvents) collector.collect(EngineEvent.Completed(result))
         return result
     }
 
@@ -392,7 +392,7 @@ internal class ReteSessionImpl(
             warnings = warnings.toList()
         )
 
-        collector.collect(EngineEvent.Completed(result))
+        if (collectEvents) collector.collect(EngineEvent.Completed(result))
         return result
     }
 

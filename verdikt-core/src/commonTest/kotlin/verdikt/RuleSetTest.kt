@@ -255,4 +255,18 @@ class RuleSetTest {
             }
         }
     }
+
+    @Test
+    fun plusWithDuplicateNamesThrows() {
+        val rules1 = rules<Person, String> {
+            rule("shared-name") { condition { true } }
+        }
+        val rules2 = rules<Person, String> {
+            rule("shared-name") { condition { true } }
+        }
+
+        assertFailsWith<IllegalArgumentException> {
+            rules1 + rules2
+        }
+    }
 }

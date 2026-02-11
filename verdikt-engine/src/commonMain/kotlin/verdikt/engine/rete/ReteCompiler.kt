@@ -51,7 +51,9 @@ internal class ReteCompiler {
             compileProducer(producer, alphaNodes, outputNodes)
         }
 
-        val network = ReteNetwork(alphaNodes, betaNodes, outputNodes)
+        val immutableAlphaNodes: Map<KClass<*>, List<AlphaNode<*>>> =
+            alphaNodes.mapValues { (_, nodes) -> nodes.toList() }
+        val network = ReteNetwork(immutableAlphaNodes, betaNodes, outputNodes)
         // Wire output nodes to network for pending activation counting
         for (node in outputNodes) {
             node.network = network
@@ -80,7 +82,10 @@ internal class ReteCompiler {
         // Register alpha node by type
         alphaNodes.getOrPut(inputType) { mutableListOf() }.add(alphaNode)
 
-        // Create output node
+        // Create output node.
+        // IMPORTANT: OutputNode passes a reusable mutable list (reusableSingleFactList) as
+        // the `facts` parameter. This lambda MUST extract values immediately via facts.first()
+        // and MUST NOT retain a reference to the list.
         val outputNode = OutputNode<Any>(
             id = "output-${producer.name}",
             ruleName = producer.name,

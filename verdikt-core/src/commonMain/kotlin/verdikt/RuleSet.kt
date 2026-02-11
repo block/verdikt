@@ -101,6 +101,10 @@ internal open class RuleSetImpl<Fact, Cause : Any>(
             is RuleSetImpl<Fact, Cause> -> other.internalRules
             else -> other.rules.map { it.toInternalRule() }
         }
+        val existingNames = internalRules.mapTo(HashSet(internalRules.size)) { it.name }
+        for (rule in otherRules) {
+            require(rule.name !in existingNames) { "Duplicate rule name: '${rule.name}'" }
+        }
         return RuleSetImpl(internalRules + otherRules)
     }
 

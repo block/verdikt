@@ -14,7 +14,7 @@ import kotlin.reflect.KClass
  * providing significant performance improvements for:
  * - Large numbers of facts (avoid re-scanning all facts each iteration)
  * - Chained rules (incremental propagation through network)
- * - Repeated evaluations (network compiled once, reused across sessions)
+ * - Repeated evaluations (network compiled once at [EngineImpl] construction, reset per session)
  *
  * Limitations:
  * - Async producers fall back to linear scan
@@ -132,17 +132,29 @@ internal class ReteSessionImpl(
         return null
     }
 
-    private fun executePhase(
+    /**
+     * Execute the RETE firing loop: reset network, apply guards, activate facts,
+     * and fire pending activations in priority order until stable.
+     *
+     * This is the shared core of both [executePhase] and [executePhaseAsync].
+     * The only divergence is how fallback producers are executed (sync vs async).
+     */
+    private fun executeReteLoop(
         network: ReteNetwork,
-        phase: ProcessedPhase,
-        fallback: List<InternalFactProducer<*, *>>
+        phase: ProcessedPhase
     ) {
-        // Reset network state from any previous session using this network
+        // Reset network state from any previous evaluation using this network
         network.reset()
+
+        // Pre-build guard lookup map: O(1) per node instead of O(N) linear scan
+        val producersByName = HashMap<String, InternalFactProducer<*, *>>(phase.factProducers.size)
+        for (producer in phase.factProducers) {
+            producersByName[producer.name] = producer
+        }
 
         // Mark skipped output nodes directly via flag (avoids Set lookup in hot loop)
         for (outputNode in network.outputNodes) {
-            val producer = phase.factProducers.find { it.name == outputNode.ruleName }
+            val producer = producersByName[outputNode.ruleName]
             val guard = producer?.guard
             if (guard != null && !guard.allows(context)) {
                 if (outputNode.ruleName !in skippedRules) {
@@ -184,6 +196,8 @@ internal class ReteSessionImpl(
             val activationsWithOutputs = nodeToFire.firePendingWithInputs()
 
             for ((inputFacts, outputs) in activationsWithOutputs) {
+                // Optimization: avoid mutableListOf allocation for the common single-output case.
+                // firstAdded/extraAdded tracks outputs without eagerly creating a list.
                 var firstAdded: Any? = null
                 var extraAdded: MutableList<Any>? = null
 
@@ -226,8 +240,14 @@ internal class ReteSessionImpl(
                 }
             }
         }
+    }
 
-        // Run fallback producers (async) with naive loop
+    private fun executePhase(
+        network: ReteNetwork,
+        phase: ProcessedPhase,
+        fallback: List<InternalFactProducer<*, *>>
+    ) {
+        executeReteLoop(network, phase)
         if (fallback.isNotEmpty()) {
             executeFallbackProducers(fallback)
         }
@@ -401,96 +421,7 @@ internal class ReteSessionImpl(
         phase: ProcessedPhase,
         fallback: List<InternalFactProducer<*, *>>
     ) {
-        // Reset network state from any previous session using this network
-        network.reset()
-
-        // Mark skipped output nodes directly via flag
-        for (outputNode in network.outputNodes) {
-            val producer = phase.factProducers.find { it.name == outputNode.ruleName }
-            val guard = producer?.guard
-            if (guard != null && !guard.allows(context)) {
-                if (outputNode.ruleName !in skippedRules) {
-                    skippedRules[outputNode.ruleName] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
-                }
-                outputNode.isSkipped = true
-            }
-        }
-
-        // Activate initial facts through Rete network (queues activations)
-        val initialFacts = workingMemory.snapshot()
-        for (fact in initialFacts) {
-            network.activate(fact)
-        }
-
-        // Fire pending activations in priority order until stable
-        while (network.hasPendingActivations()) {
-            iterations++
-
-            if (iterations > config.maxIterations) {
-                throw MaxIterationsExceededException(iterations, config.maxIterations)
-            }
-
-            // Find highest-priority non-skipped node with pending activations (linear scan)
-            val nodeToFire = findNextFirableNode(network)
-
-            if (nodeToFire == null) {
-                // Only skipped nodes have pending activations - clear them without firing
-                for (node in network.outputNodes) {
-                    if (node.isSkipped && node.hasPendingActivations()) {
-                        node.clearPending()
-                    }
-                }
-                break
-            }
-
-            val activationsWithOutputs = nodeToFire.firePendingWithInputs()
-
-            for ((inputFacts, outputs) in activationsWithOutputs) {
-                var firstAdded: Any? = null
-                var extraAdded: MutableList<Any>? = null
-
-                for (output in outputs) {
-                    if (workingMemory.add(output)) {
-                        derivedFacts.add(output)
-                        ruleActivations++
-                        if (firstAdded == null) {
-                            firstAdded = output
-                        } else {
-                            if (extraAdded == null) extraAdded = mutableListOf()
-                            extraAdded.add(output)
-                        }
-                        if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        network.activate(output)
-                    }
-                }
-
-                if (firstAdded != null) {
-                    val inputFact = inputFacts.first()
-                    val addedOutputs = if (extraAdded != null) {
-                        buildList { add(firstAdded); addAll(extraAdded) }
-                    } else {
-                        listOf(firstAdded)
-                    }
-                    traceEntries?.add(RuleActivation(
-                        ruleName = nodeToFire.ruleName,
-                        inputFact = inputFact,
-                        outputFacts = addedOutputs,
-                        priority = nodeToFire.priority
-                    ))
-                    if (collectEvents) {
-                        collector.collect(EngineEvent.RuleFired(
-                            ruleName = nodeToFire.ruleName,
-                            inputFact = inputFact,
-                            outputFacts = addedOutputs,
-                            priority = nodeToFire.priority
-                        ))
-                    }
-                }
-            }
-        }
-
-        // Run async fallback producers
+        executeReteLoop(network, phase)
         if (fallback.isNotEmpty()) {
             executeFallbackProducersAsync(fallback)
         }

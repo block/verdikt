@@ -56,6 +56,7 @@ internal class OutputNode<Out : Any>(
     internal var isSkipped: Boolean = false
 
     override fun leftActivateFact(fact: Any) {
+        if (isSkipped) return
         if (fact in firedForSingle) return
         firedForSingle.add(fact)
         pendingSingleFacts.add(fact)
@@ -68,6 +69,7 @@ internal class OutputNode<Out : Any>(
     }
 
     override fun leftActivate(token: JoinedToken) {
+        if (isSkipped) return
         val facts = token.facts
         if (facts in firedForMulti) return
         firedForMulti.add(facts)
@@ -152,6 +154,10 @@ internal class OutputNode<Out : Any>(
 
     /**
      * Check if this node has fired for a given input combination.
+     *
+     * Note: 1-element lists route to [firedForSingle]. This assumes [JoinedToken]s always
+     * produce multi-element fact lists. If 1-element JoinedTokens are introduced in the
+     * future, this method must check both sets for size-1 lists.
      */
     fun hasFiredFor(facts: List<Any>): Boolean {
         if (facts.size == 1) return facts.first() in firedForSingle

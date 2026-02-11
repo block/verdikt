@@ -1,12 +1,17 @@
 package verdikt.engine
 
+import verdikt.engine.rete.CompilationResult
 import verdikt.engine.rete.ReteCompiler
 
 /**
  * Implementation of [Engine].
  *
- * Rete networks are compiled per session so each [evaluate]/[evaluateAsync] call
- * gets fully independent mutable state. This makes the engine safe for concurrent use.
+ * Rete networks are compiled once at construction and reused across evaluations.
+ * Session state is reset at the start of each phase via [ReteNetwork.reset][verdikt.engine.rete.ReteNetwork.reset].
+ *
+ * **Thread safety:** This class is NOT safe for concurrent [evaluate]/[evaluateAsync] calls
+ * from multiple threads. Each call mutates shared network state (alpha memories, output node
+ * pending lists). For concurrent use, create separate [Engine] instances or synchronize externally.
  */
 internal class EngineImpl(
     private val internalPhases: List<PhaseImpl>,
@@ -21,6 +26,10 @@ internal class EngineImpl(
             validationRules = phase.validationRules.sortedByDescending { it.priority }
         )
     }
+
+    // Compile Rete networks once at construction (amortized across evaluations)
+    private val compilationResults: List<CompilationResult> =
+        processedPhases.map { ReteCompiler().compile(it.factProducers) }
 
     override val phases: List<Phase>
         get() = internalPhases
@@ -44,7 +53,6 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
-        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fire()
@@ -55,7 +63,6 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
-        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fireAsync()

@@ -29,7 +29,7 @@ import kotlin.reflect.KClass
  * @property outputNodes Terminal nodes that produce outputs
  */
 internal class ReteNetwork(
-    val alphaNodes: Map<KClass<*>, MutableList<AlphaNode<*>>>,
+    val alphaNodes: Map<KClass<*>, List<AlphaNode<*>>>,
     val betaNodes: List<BetaNode<*>>,
     val outputNodes: List<OutputNode<*>>
 ) {
@@ -89,36 +89,6 @@ internal class ReteNetwork(
         }
 
         return activated
-    }
-
-    /**
-     * Get all output nodes, sorted by priority (descending).
-     */
-    fun outputNodesByPriority(): List<OutputNode<*>> =
-        outputNodes.sortedByDescending { it.priority }
-
-    /**
-     * Fire all pending activations in priority order.
-     *
-     * This collects all output nodes with pending activations, sorts them by priority
-     * (highest first), and fires them. Returns the outputs produced.
-     *
-     * @return List of all outputs produced, in priority order
-     */
-    fun firePendingByPriority(): List<Any> {
-        val allOutputs = mutableListOf<Any>()
-
-        // Get output nodes with pending activations, sorted by priority (highest first)
-        val nodesWithPending = outputNodes
-            .filter { it.hasPendingActivations() }
-            .sortedByDescending { it.priority }
-
-        for (node in nodesWithPending) {
-            val outputs = node.firePending()
-            allOutputs.addAll(outputs)
-        }
-
-        return allOutputs
     }
 
     /**

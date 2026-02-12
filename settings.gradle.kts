@@ -13,6 +13,7 @@ pluginManagement {
         kotlin("plugin.allopen") version "2.0.21"
         id("org.jetbrains.compose") version "1.7.1"
         id("org.jetbrains.kotlinx.benchmark") version "0.4.13"
+        id("com.vanniktech.maven.publish") version "0.30.0" apply false
     }
 }
 

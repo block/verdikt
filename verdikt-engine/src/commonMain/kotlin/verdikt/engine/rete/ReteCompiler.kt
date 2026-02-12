@@ -53,6 +53,8 @@ internal class ReteCompiler {
 
         val immutableAlphaNodes: Map<KClass<*>, List<AlphaNode<*>>> =
             alphaNodes.mapValues { (_, nodes) -> nodes.toList() }
+        // Output nodes are in priority-descending order (matching `producers` input order).
+        // ReteSessionImpl.findNextFirableNode() depends on this invariant.
         val network = ReteNetwork(immutableAlphaNodes, betaNodes, outputNodes)
         // Wire output nodes to network for pending activation counting
         for (node in outputNodes) {

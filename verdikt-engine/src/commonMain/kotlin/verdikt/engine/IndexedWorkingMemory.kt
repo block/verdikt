@@ -94,15 +94,6 @@ internal class IndexedWorkingMemory {
     fun contains(fact: Any): Boolean = fact in allFacts
 
     /**
-     * Get all facts matching the specified type using instance checking.
-     * This always uses O(n) filtering but maintains compatibility with
-     * the original behavior.
-     */
-    @Suppress("UNCHECKED_CAST")
-    fun <T : Any> filterByType(type: KClass<T>): List<T> =
-        allFacts.filter { type.isInstance(it) }.map { it as T }
-
-    /**
      * Total number of facts in working memory.
      */
     val size: Int get() = allFacts.size

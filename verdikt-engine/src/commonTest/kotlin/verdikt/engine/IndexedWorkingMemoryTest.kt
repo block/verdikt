@@ -106,23 +106,6 @@ class IndexedWorkingMemoryTest {
     }
 
     @Test
-    fun filterByTypeReturnsFactsAsListUsingInstanceCheck() {
-        val memory = IndexedWorkingMemory()
-        val customer1 = Customer("1", "Alice")
-        val customer2 = Customer("2", "Bob")
-        val order = Order("o1", "1", 100.0)
-
-        memory.add(customer1)
-        memory.add(customer2)
-        memory.add(order)
-
-        val customers = memory.filterByType(Customer::class)
-        assertEquals(2, customers.size)
-        assertTrue(customer1 in customers)
-        assertTrue(customer2 in customers)
-    }
-
-    @Test
     fun containsChecksFact() {
         val memory = IndexedWorkingMemory()
         val customer = Customer("1", "Alice")

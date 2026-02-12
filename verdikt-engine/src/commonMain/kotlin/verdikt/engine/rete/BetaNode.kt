@@ -58,8 +58,8 @@ internal class BetaNode<R : Any>(
         leftTokens.add(token)
 
         // Try to join with all facts in right alpha memory
-        for (rightToken in rightInput.memory.all()) {
-            tryJoin(token, rightToken.fact)
+        for (rightFact in rightInput.memory.allFacts()) {
+            tryJoin(token, rightFact)
         }
     }
 

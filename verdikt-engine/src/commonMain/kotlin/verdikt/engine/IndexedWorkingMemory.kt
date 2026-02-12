@@ -51,6 +51,11 @@ internal class IndexedWorkingMemory {
     fun all(): Set<Any> = allFacts.toSet()
 
     /**
+     * Get a snapshot of all facts as a single List copy (avoids double-copy of all().toList()).
+     */
+    fun snapshot(): List<Any> = allFacts.toList()
+
+    /**
      * Get all facts of the specified type.
      *
      * If the exact type is indexed, this is O(1). If not (querying by supertype),
@@ -87,15 +92,6 @@ internal class IndexedWorkingMemory {
      * Check if the exact fact exists in working memory.
      */
     fun contains(fact: Any): Boolean = fact in allFacts
-
-    /**
-     * Get all facts matching the specified type using instance checking.
-     * This always uses O(n) filtering but maintains compatibility with
-     * the original behavior.
-     */
-    @Suppress("UNCHECKED_CAST")
-    fun <T : Any> filterByType(type: KClass<T>): List<T> =
-        allFacts.filter { type.isInstance(it) }.map { it as T }
 
     /**
      * Total number of facts in working memory.

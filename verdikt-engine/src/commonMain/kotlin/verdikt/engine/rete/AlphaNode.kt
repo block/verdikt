@@ -9,7 +9,7 @@ import kotlin.reflect.KClass
  * 1. Filter facts by type (only facts of [inputType] pass through)
  * 2. Test each fact against a [condition]
  * 3. Store passing facts in [memory]
- * 4. Propagate tokens to [successors]
+ * 4. Propagate facts to [successors]
  *
  * Alpha nodes implement the "intra-element" conditions - tests that
  * involve only a single fact.
@@ -33,8 +33,8 @@ internal class AlphaNode<In : Any>(
      * Test a fact against this node's type and condition.
      *
      * If the fact passes:
-     * 1. A token is created and stored in memory
-     * 2. The token is propagated to all successors
+     * 1. It is stored in memory
+     * 2. It is propagated to all successors
      *
      * @param fact The fact to test
      * @return true if fact passed and was added to memory
@@ -44,8 +44,14 @@ internal class AlphaNode<In : Any>(
         if (!inputType.isInstance(fact)) return false
 
         @Suppress("UNCHECKED_CAST")
-        val typedFact = fact as In
+        return activateTyped(fact as In)
+    }
 
+    /**
+     * Fast-path activation when the type is already guaranteed (e.g., exact-match dispatch).
+     * Skips the isInstance check and avoids Token wrapper allocation for single-fact rules.
+     */
+    fun activateTyped(typedFact: In): Boolean {
         // Already processed?
         if (memory.contains(typedFact)) return false
 
@@ -53,20 +59,18 @@ internal class AlphaNode<In : Any>(
         if (!condition(typedFact)) return false
 
         // Add to memory and propagate
-        val token = Token(typedFact)
-        memory.add(token)
-
-        propagate(token)
+        memory.add(typedFact)
+        propagateFact(typedFact)
 
         return true
     }
 
     /**
-     * Propagate a token to all successor nodes.
+     * Propagate a fact directly to all successor nodes.
      */
-    private fun propagate(token: Token<In>) {
+    private fun propagateFact(fact: In) {
         for (successor in successors) {
-            successor.leftActivate(token)
+            successor.leftActivateFact(fact)
         }
     }
 
@@ -82,12 +86,12 @@ internal class AlphaNode<In : Any>(
     }
 
     /**
-     * Re-propagate all stored tokens to successors.
+     * Re-propagate all stored facts to successors.
      * Useful when a new successor is added after facts were already processed.
      */
     fun repropagate() {
-        for (token in memory.all()) {
-            propagate(token)
+        for (fact in memory.allFacts()) {
+            propagateFact(fact)
         }
     }
 }

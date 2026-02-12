@@ -138,9 +138,22 @@ public class PhaseBuilder @PublishedApi internal constructor(
     }
 
     @PublishedApi
-    internal fun build(): Phase = PhaseImpl(
-        name = phaseName,
-        factProducers = factProducers.toList(),
-        validationRules = validationRules.toList()
-    )
+    internal fun build(): Phase {
+        val allNames = mutableSetOf<String>()
+        for (producer in factProducers) {
+            require(allNames.add(producer.name)) {
+                "Duplicate rule name in phase '$phaseName': '${producer.name}'"
+            }
+        }
+        for (rule in validationRules) {
+            require(allNames.add(rule.name)) {
+                "Duplicate rule name in phase '$phaseName': '${rule.name}'"
+            }
+        }
+        return PhaseImpl(
+            name = phaseName,
+            factProducers = factProducers.toList(),
+            validationRules = validationRules.toList()
+        )
+    }
 }

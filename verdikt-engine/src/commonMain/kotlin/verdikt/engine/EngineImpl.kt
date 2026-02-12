@@ -5,8 +5,9 @@ import verdikt.engine.rete.ReteCompiler
 /**
  * Implementation of [Engine].
  *
- * Rete networks are compiled once at engine construction time and reused across
- * all evaluation sessions. Each session resets the network state before use.
+ * Rete networks are compiled per evaluation call, giving each session fully independent
+ * mutable state. This ensures thread-safety: multiple threads can call [evaluate] or
+ * [evaluateAsync] concurrently on the same [Engine] instance without synchronization.
  */
 internal class EngineImpl(
     private val internalPhases: List<PhaseImpl>,
@@ -20,11 +21,6 @@ internal class EngineImpl(
             factProducers = phase.factProducers.sortedByDescending { it.priority },
             validationRules = phase.validationRules.sortedByDescending { it.priority }
         )
-    }
-
-    // Compile Rete networks once at engine construction - this is the key optimization
-    private val compilationResults = processedPhases.map { phase ->
-        ReteCompiler().compile(phase.factProducers)
     }
 
     override val phases: List<Phase>
@@ -49,6 +45,7 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
+        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fire()
@@ -59,6 +56,7 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
+        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fireAsync()

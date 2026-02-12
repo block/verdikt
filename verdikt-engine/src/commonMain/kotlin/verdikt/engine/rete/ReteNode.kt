@@ -36,4 +36,13 @@ internal interface ReteNode {
             leftActivate(Token(token.facts.first()))
         }
     }
+
+    /**
+     * Called when a single fact arrives directly (bypassing Token allocation).
+     * Default creates a Token for backward compatibility with nodes that
+     * haven't overridden this method.
+     */
+    fun leftActivateFact(fact: Any) {
+        leftActivate(Token(fact))
+    }
 }

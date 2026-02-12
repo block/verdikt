@@ -29,10 +29,16 @@ import kotlin.reflect.KClass
  * @property outputNodes Terminal nodes that produce outputs
  */
 internal class ReteNetwork(
-    val alphaNodes: Map<KClass<*>, MutableList<AlphaNode<*>>>,
+    val alphaNodes: Map<KClass<*>, List<AlphaNode<*>>>,
     val betaNodes: List<BetaNode<*>>,
     val outputNodes: List<OutputNode<*>>
 ) {
+    /** Counter tracking total pending activations across all output nodes. O(1) check. */
+    internal var pendingActivationCount: Int = 0
+
+    /** Cache of polymorphic (supertype/interface) alpha nodes per fact class. */
+    private val polymorphicNodeCache: MutableMap<KClass<*>, List<AlphaNode<*>>> = mutableMapOf()
+
     /**
      * Activate a fact through all applicable alpha nodes.
      *
@@ -43,30 +49,39 @@ internal class ReteNetwork(
      * @param fact The fact to activate
      * @return true if any alpha node accepted the fact
      */
+    @Suppress("UNCHECKED_CAST")
     fun activate(fact: Any): Boolean {
         var activated = false
 
-        // Find alpha nodes that accept this fact's type
+        // Find alpha nodes that accept this fact's exact type
         val factClass = fact::class
         val nodes = alphaNodes[factClass]
 
         if (nodes != null) {
+            // Use activateTyped fast-path: type is already guaranteed by exact-match dispatch
             for (alphaNode in nodes) {
-                if (alphaNode.activate(fact)) {
+                if ((alphaNode as AlphaNode<Any>).activateTyped(fact)) {
                     activated = true
                 }
             }
         }
 
-        // Also check for interface/supertype matches
-        // This is less efficient but necessary for polymorphic rules
-        for ((type, typeNodes) in alphaNodes) {
-            if (type != factClass && type.isInstance(fact)) {
-                for (alphaNode in typeNodes) {
-                    if (alphaNode.activate(fact)) {
-                        activated = true
+        // Also check for interface/supertype matches.
+        // This handles polymorphic rules AND Kotlin/JS where runtime class
+        // for primitives may not match the compile-time KClass in the map.
+        val polyNodes = polymorphicNodeCache.getOrPut(factClass) {
+            buildList {
+                for ((type, typeNodes) in alphaNodes) {
+                    if (type != factClass && type.isInstance(fact)) {
+                        addAll(typeNodes)
                     }
                 }
+            }
+        }
+
+        for (alphaNode in polyNodes) {
+            if (alphaNode.activate(fact)) {
+                activated = true
             }
         }
 
@@ -74,40 +89,9 @@ internal class ReteNetwork(
     }
 
     /**
-     * Get all output nodes, sorted by priority (descending).
+     * Check if any output nodes have pending activations. O(1) via counter.
      */
-    fun outputNodesByPriority(): List<OutputNode<*>> =
-        outputNodes.sortedByDescending { it.priority }
-
-    /**
-     * Fire all pending activations in priority order.
-     *
-     * This collects all output nodes with pending activations, sorts them by priority
-     * (highest first), and fires them. Returns the outputs produced.
-     *
-     * @return List of all outputs produced, in priority order
-     */
-    fun firePendingByPriority(): List<Any> {
-        val allOutputs = mutableListOf<Any>()
-
-        // Get output nodes with pending activations, sorted by priority (highest first)
-        val nodesWithPending = outputNodes
-            .filter { it.hasPendingActivations() }
-            .sortedByDescending { it.priority }
-
-        for (node in nodesWithPending) {
-            val outputs = node.firePending()
-            allOutputs.addAll(outputs)
-        }
-
-        return allOutputs
-    }
-
-    /**
-     * Check if any output nodes have pending activations.
-     */
-    fun hasPendingActivations(): Boolean =
-        outputNodes.any { it.hasPendingActivations() }
+    fun hasPendingActivations(): Boolean = pendingActivationCount > 0
 
     /**
      * Get statistics about the network.
@@ -124,6 +108,8 @@ internal class ReteNetwork(
      * Reset all node memories (for session reset).
      */
     fun reset() {
+        pendingActivationCount = 0
+        polymorphicNodeCache.clear()
         for (nodes in alphaNodes.values) {
             for (node in nodes) {
                 node.memory.clear()

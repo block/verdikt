@@ -9,11 +9,17 @@ package verdikt
 @RuleDsl
 public class RuleSetBuilder<Fact, Cause : Any> internal constructor() {
     private val rules = mutableListOf<InternalRule<Fact, Cause>>()
+    private val ruleNames = mutableSetOf<String>()
+
+    private fun checkDuplicateName(name: String) {
+        require(ruleNames.add(name)) { "Duplicate rule name: '$name'" }
+    }
 
     /**
      * Defines a rule inline within this rule set.
      */
     public fun rule(name: String, block: RuleBuilder<Fact, Cause>.() -> Unit) {
+        checkDuplicateName(name)
         val builder = RuleBuilder<Fact, Cause>(name)
         builder.block()
         rules.add(builder.build())
@@ -37,6 +43,7 @@ public class RuleSetBuilder<Fact, Cause : Any> internal constructor() {
      * ```
      */
     public fun add(rule: Rule<Fact, Cause>) {
+        checkDuplicateName(rule.name)
         rules.add(rule.toInternalRule())
     }
 
@@ -57,6 +64,7 @@ public class RuleSetBuilder<Fact, Cause : Any> internal constructor() {
      * ```
      */
     public fun add(rule: AsyncRule<Fact, Cause>) {
+        checkDuplicateName(rule.name)
         rules.add(rule.toInternalRule())
     }
 
@@ -66,21 +74,14 @@ public class RuleSetBuilder<Fact, Cause : Any> internal constructor() {
      */
     @Suppress("UNCHECKED_CAST")
     public fun include(ruleSet: RuleSet<Fact, Cause>) {
-        when (ruleSet) {
-            is RuleSetImpl<Fact, Cause> -> rules.addAll(ruleSet.internalRules)
-            else -> {
-                // For custom implementations, add rules by evaluating them
-                ruleSet.names.forEach { name ->
-                    rules.add(InternalRule(
-                        name = name,
-                        description = "",
-                        condition = { fact -> ruleSet.evaluate(fact).passed },
-                        asyncCondition = null,
-                        failureReasonFn = { "Rule '$name' failed" as Cause }
-                    ))
-                }
-            }
+        val rulesToAdd = when (ruleSet) {
+            is RuleSetImpl<Fact, Cause> -> ruleSet.internalRules
+            else -> ruleSet.rules.map { it.toInternalRule() }
         }
+        for (rule in rulesToAdd) {
+            checkDuplicateName(rule.name)
+        }
+        rules.addAll(rulesToAdd)
     }
 
     internal fun build(): RuleSet<Fact, Cause> = RuleSetImpl.create(rules.toList())

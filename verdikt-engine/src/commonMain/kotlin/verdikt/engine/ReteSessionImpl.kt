@@ -14,7 +14,7 @@ import kotlin.reflect.KClass
  * providing significant performance improvements for:
  * - Large numbers of facts (avoid re-scanning all facts each iteration)
  * - Chained rules (incremental propagation through network)
- * - Repeated evaluations (network compiled once at [EngineImpl] construction, reset per session)
+ * - Repeated evaluations (network compiled per session in each evaluate() call)
  *
  * Limitations:
  * - Async producers fall back to linear scan

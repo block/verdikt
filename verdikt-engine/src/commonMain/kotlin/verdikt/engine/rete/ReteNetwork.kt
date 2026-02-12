@@ -37,7 +37,7 @@ internal class ReteNetwork(
     internal var pendingActivationCount: Int = 0
 
     /** Cache of polymorphic (supertype/interface) alpha nodes per fact class. */
-    private var polymorphicNodeCache: Map<KClass<*>, List<AlphaNode<*>>> = emptyMap()
+    private val polymorphicNodeCache: MutableMap<KClass<*>, List<AlphaNode<*>>> = mutableMapOf()
 
     /**
      * Activate a fact through all applicable alpha nodes.
@@ -69,17 +69,14 @@ internal class ReteNetwork(
         // Also check for interface/supertype matches.
         // This handles polymorphic rules AND Kotlin/JS where runtime class
         // for primitives may not match the compile-time KClass in the map.
-        val cached = polymorphicNodeCache
-        val polyNodes = cached[factClass] ?: run {
-            val computed = buildList {
+        val polyNodes = polymorphicNodeCache.getOrPut(factClass) {
+            buildList {
                 for ((type, typeNodes) in alphaNodes) {
                     if (type != factClass && type.isInstance(fact)) {
                         addAll(typeNodes)
                     }
                 }
             }
-            polymorphicNodeCache = cached + (factClass to computed)
-            computed
         }
 
         for (alphaNode in polyNodes) {
@@ -112,6 +109,7 @@ internal class ReteNetwork(
      */
     fun reset() {
         pendingActivationCount = 0
+        polymorphicNodeCache.clear()
         for (nodes in alphaNodes.values) {
             for (node in nodes) {
                 node.memory.clear()

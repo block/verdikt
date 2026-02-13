@@ -15,7 +15,7 @@ internal interface ReteNode {
     val id: String
 
     /** Successor nodes that receive tokens from this node */
-    val successors: MutableList<ReteNode>
+    val successors: List<ReteNode>
 
     /**
      * Called when a single-fact token arrives from the left (or only) input.

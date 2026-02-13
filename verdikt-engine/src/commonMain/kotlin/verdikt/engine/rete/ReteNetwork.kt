@@ -34,7 +34,16 @@ internal class ReteNetwork(
     val outputNodes: List<OutputNode<*>>
 ) {
     /** Counter tracking total pending activations across all output nodes. O(1) check. */
-    internal var pendingActivationCount: Int = 0
+    private var _pendingActivationCount: Int = 0
+
+    /** Read-only accessor for the pending activation count. */
+    val pendingActivationCount: Int get() = _pendingActivationCount
+
+    /** Increment the pending activation count (called by OutputNode on enqueue). */
+    fun incrementPendingActivations() { _pendingActivationCount++ }
+
+    /** Decrement the pending activation count by [n] (called by OutputNode on fire/clear). */
+    fun decrementPendingActivations(n: Int) { _pendingActivationCount -= n }
 
     /** Cache of polymorphic (supertype/interface) alpha nodes per fact class. */
     private val polymorphicNodeCache: MutableMap<KClass<*>, List<AlphaNode<*>>> = mutableMapOf()
@@ -91,7 +100,7 @@ internal class ReteNetwork(
     /**
      * Check if any output nodes have pending activations. O(1) via counter.
      */
-    fun hasPendingActivations(): Boolean = pendingActivationCount > 0
+    fun hasPendingActivations(): Boolean = _pendingActivationCount > 0
 
     /**
      * Get statistics about the network.
@@ -108,7 +117,7 @@ internal class ReteNetwork(
      * Reset all node memories (for session reset).
      */
     fun reset() {
-        pendingActivationCount = 0
+        _pendingActivationCount = 0
         polymorphicNodeCache.clear()
         for (nodes in alphaNodes.values) {
             for (node in nodes) {

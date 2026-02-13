@@ -56,7 +56,7 @@ internal class OutputNode<Out : Any>(
         if (fact in firedForSingle) return
         firedForSingle.add(fact)
         pendingSingleFacts.add(fact)
-        network?.let { it.pendingActivationCount++ }
+        network?.incrementPendingActivations()
     }
 
     override fun leftActivate(token: Token<*>) {
@@ -70,7 +70,7 @@ internal class OutputNode<Out : Any>(
         if (facts in firedForMulti) return
         firedForMulti.add(facts)
         pendingMultiActivations.add(facts)
-        network?.let { it.pendingActivationCount++ }
+        network?.incrementPendingActivations()
     }
 
     /**
@@ -112,7 +112,7 @@ internal class OutputNode<Out : Any>(
             results.add(facts to outputs)
         }
 
-        network?.let { it.pendingActivationCount -= totalSize }
+        network?.decrementPendingActivations(totalSize)
         pendingSingleFacts.clear()
         pendingMultiActivations.clear()
         return results
@@ -125,7 +125,7 @@ internal class OutputNode<Out : Any>(
     fun clearPending() {
         val totalSize = pendingSingleFacts.size + pendingMultiActivations.size
         if (totalSize > 0) {
-            network?.let { it.pendingActivationCount -= totalSize }
+            network?.decrementPendingActivations(totalSize)
             pendingSingleFacts.clear()
             pendingMultiActivations.clear()
         }

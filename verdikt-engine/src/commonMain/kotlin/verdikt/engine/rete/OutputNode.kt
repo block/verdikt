@@ -7,7 +7,6 @@ package verdikt.engine.rete
  * 1. Check if this input combination has already fired
  * 2. If not, queue the activation (or fire immediately if not using priority ordering)
  * 3. When explicitly fired, invoke the producer to create output fact(s)
- * 4. Invoke the callback to insert produced facts into working memory
  *
  * The de-duplication prevents the same rule from firing multiple times
  * for the same input facts.
@@ -45,9 +44,6 @@ internal class OutputNode<Out : Any>(
      * and must NOT retain a reference to this list.
      */
     private val reusableSingleFactList = ArrayList<Any>(1).apply { add(Unit) }
-
-    /** Callback to insert produced facts into working memory */
-    var onProduce: ((Out) -> Unit)? = null
 
     /** Reference to parent network for pending activation counting */
     internal var network: ReteNetwork? = null
@@ -99,7 +95,6 @@ internal class OutputNode<Out : Any>(
 
         val totalSize = pendingSingleFacts.size + pendingMultiActivations.size
         val results = ArrayList<Pair<List<Any>, List<Out>>>(totalSize)
-        val callback = onProduce
         val reusable = reusableSingleFactList
 
         // Fire single-fact pending
@@ -108,9 +103,6 @@ internal class OutputNode<Out : Any>(
             val output = producer(reusable)
             val outputs = if (output != null) listOf(output) else emptyList()
             results.add(listOf(fact) to outputs)
-            if (callback != null && output != null) {
-                callback(output)
-            }
         }
 
         // Fire multi-fact pending
@@ -118,9 +110,6 @@ internal class OutputNode<Out : Any>(
             val output = producer(facts)
             val outputs = if (output != null) listOf(output) else emptyList()
             results.add(facts to outputs)
-            if (callback != null && output != null) {
-                callback(output)
-            }
         }
 
         network?.let { it.pendingActivationCount -= totalSize }

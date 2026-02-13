@@ -56,17 +56,32 @@ internal class IndexedWorkingMemory {
     fun snapshot(): List<Any> = allFacts.toList()
 
     /**
+     * Iterate all facts without copying. The caller MUST NOT modify working memory during
+     * iteration (no calls to [add] while iterating). Safe for read-only passes like
+     * initial Rete network activation.
+     */
+    inline fun forEach(action: (Any) -> Unit) {
+        for (fact in allFacts) {
+            action(fact)
+        }
+    }
+
+    /**
      * Get all facts of the specified type.
      *
-     * If the exact type is indexed, this is O(1). If not (querying by supertype),
-     * falls back to O(n) filtering.
+     * If the exact type is indexed, returns a read-only view of the internal set
+     * (no copy). The caller MUST NOT hold this reference across mutations to working
+     * memory. For iteration-only use (the common case in rule evaluation), this is safe.
+     *
+     * If the type is a supertype/interface, falls back to O(n) filtering and returns
+     * a new set.
      */
     @Suppress("UNCHECKED_CAST")
     fun <T : Any> ofType(type: KClass<T>): Set<T> {
-        // Try exact type match first (O(1))
+        // Try exact type match first (O(1)) — return read-only view, no copy
         val exactMatch = typeIndex[type]
         if (exactMatch != null) {
-            return exactMatch.toSet() as Set<T>
+            return exactMatch as Set<T>
         }
 
         // Fall back to filtering for subtypes (O(n))

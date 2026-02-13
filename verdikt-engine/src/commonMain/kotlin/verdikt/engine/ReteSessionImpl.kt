@@ -45,6 +45,9 @@ internal class ReteSessionImpl(
     // Skip event allocation when collector is EMPTY (Bottleneck 7)
     private val collectEvents = collector !== EngineEventCollector.EMPTY
 
+    // Fast check: skip addedOutputs list construction when neither tracing nor events are active
+    private val recordActivations = config.enableTracing || collectEvents
+
     // Working memory
     private val workingMemory = IndexedWorkingMemory()
 
@@ -104,15 +107,17 @@ internal class ReteSessionImpl(
         // Evaluate validation rules
         val verdict = evaluateValidationRules()
 
+        // Session is discarded after this — hand off internal collections directly
+        // to avoid defensive copies (toSet/toMap/toList).
         val result = EngineResult(
             facts = workingMemory.all(),
-            derived = derivedFacts.toSet(),
+            derived = derivedFacts,
             verdict = verdict,
-            skipped = skippedRules.toMap(),
+            skipped = skippedRules,
             ruleActivations = ruleActivations,
             iterations = iterations,
-            trace = traceEntries?.toList() ?: emptyList(),
-            warnings = warnings.toList()
+            trace = traceEntries ?: emptyList(),
+            warnings = warnings
         )
 
         if (collectEvents) collector.collect(EngineEvent.Completed(result))
@@ -165,9 +170,10 @@ internal class ReteSessionImpl(
             }
         }
 
-        // Activate initial facts through Rete network (queues activations)
-        val initialFacts = workingMemory.snapshot()
-        for (fact in initialFacts) {
+        // Activate initial facts through Rete network (queues activations).
+        // Safe to iterate without copy: activation only enqueues into output nodes,
+        // it does not modify workingMemory.
+        workingMemory.forEach { fact ->
             network.activate(fact)
         }
 
@@ -196,46 +202,57 @@ internal class ReteSessionImpl(
             val activationsWithOutputs = nodeToFire.firePendingWithInputs()
 
             for ((inputFacts, outputs) in activationsWithOutputs) {
-                // Optimization: avoid mutableListOf allocation for the common single-output case.
-                // firstAdded/extraAdded tracks outputs without eagerly creating a list.
-                var firstAdded: Any? = null
-                var extraAdded: MutableList<Any>? = null
+                if (recordActivations) {
+                    // Track which outputs were newly added for trace/event recording.
+                    // Uses firstAdded/extraAdded to avoid mutableListOf in the common single-output case.
+                    var firstAdded: Any? = null
+                    var extraAdded: MutableList<Any>? = null
 
-                for (output in outputs) {
-                    if (workingMemory.add(output)) {
-                        derivedFacts.add(output)
-                        ruleActivations++
-                        if (firstAdded == null) {
-                            firstAdded = output
-                        } else {
-                            if (extraAdded == null) extraAdded = mutableListOf()
-                            extraAdded.add(output)
+                    for (output in outputs) {
+                        if (workingMemory.add(output)) {
+                            derivedFacts.add(output)
+                            ruleActivations++
+                            if (firstAdded == null) {
+                                firstAdded = output
+                            } else {
+                                if (extraAdded == null) extraAdded = mutableListOf()
+                                extraAdded.add(output)
+                            }
+                            if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
+                            network.activate(output)
                         }
-                        if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        network.activate(output)
                     }
-                }
 
-                if (firstAdded != null) {
-                    val inputFact = inputFacts.first()
-                    val addedOutputs = if (extraAdded != null) {
-                        buildList { add(firstAdded); addAll(extraAdded) }
-                    } else {
-                        listOf(firstAdded)
-                    }
-                    traceEntries?.add(RuleActivation(
-                        ruleName = nodeToFire.ruleName,
-                        inputFact = inputFact,
-                        outputFacts = addedOutputs,
-                        priority = nodeToFire.priority
-                    ))
-                    if (collectEvents) {
-                        collector.collect(EngineEvent.RuleFired(
+                    if (firstAdded != null) {
+                        val inputFact = inputFacts.first()
+                        val addedOutputs = if (extraAdded != null) {
+                            buildList { add(firstAdded); addAll(extraAdded) }
+                        } else {
+                            listOf(firstAdded)
+                        }
+                        traceEntries?.add(RuleActivation(
                             ruleName = nodeToFire.ruleName,
                             inputFact = inputFact,
                             outputFacts = addedOutputs,
                             priority = nodeToFire.priority
                         ))
+                        if (collectEvents) {
+                            collector.collect(EngineEvent.RuleFired(
+                                ruleName = nodeToFire.ruleName,
+                                inputFact = inputFact,
+                                outputFacts = addedOutputs,
+                                priority = nodeToFire.priority
+                            ))
+                        }
+                    }
+                } else {
+                    // Fast path: no tracing or events — just insert, track, and activate
+                    for (output in outputs) {
+                        if (workingMemory.add(output)) {
+                            derivedFacts.add(output)
+                            ruleActivations++
+                            network.activate(output)
+                        }
                     }
                 }
             }
@@ -401,15 +418,16 @@ internal class ReteSessionImpl(
         // Evaluate validation rules (async)
         val verdict = evaluateValidationRulesAsync()
 
+        // Session is discarded after this — hand off internal collections directly
         val result = EngineResult(
             facts = workingMemory.all(),
-            derived = derivedFacts.toSet(),
+            derived = derivedFacts,
             verdict = verdict,
-            skipped = skippedRules.toMap(),
+            skipped = skippedRules,
             ruleActivations = ruleActivations,
             iterations = iterations,
-            trace = traceEntries?.toList() ?: emptyList(),
-            warnings = warnings.toList()
+            trace = traceEntries ?: emptyList(),
+            warnings = warnings
         )
 
         if (collectEvents) collector.collect(EngineEvent.Completed(result))

@@ -1,13 +1,20 @@
 package verdikt.engine
 
+import verdikt.engine.rete.CompilationResult
 import verdikt.engine.rete.ReteCompiler
 
 /**
  * Implementation of [Engine].
  *
- * Rete networks are compiled per evaluation call, giving each session fully independent
- * mutable state. This ensures thread-safety: multiple threads can call [evaluate] or
- * [evaluateAsync] concurrently on the same [Engine] instance without synchronization.
+ * Rete networks are compiled once at construction time and reused across evaluations.
+ * Each evaluation call resets the network's mutable state (alpha memories, output node
+ * fired-sets, pending activations) via [verdikt.engine.rete.ReteNetwork.reset] before
+ * activating facts, so sessions remain independent despite sharing compiled structure.
+ *
+ * **Thread-safety**: This class is NOT safe for concurrent use. If multiple threads need
+ * to evaluate concurrently, each should use its own [Engine] instance. The trade-off is
+ * worthwhile: compiling Rete networks is the most expensive part of [evaluate], and
+ * avoiding recompilation yields significant throughput gains.
  */
 internal class EngineImpl(
     private val internalPhases: List<PhaseImpl>,
@@ -22,6 +29,10 @@ internal class EngineImpl(
             validationRules = phase.validationRules.sortedByDescending { it.priority }
         )
     }
+
+    // Compile Rete networks once at construction time; reset() clears mutable state per evaluation
+    private val compilationResults: List<CompilationResult> =
+        processedPhases.map { ReteCompiler().compile(it.factProducers) }
 
     override val phases: List<Phase>
         get() = internalPhases
@@ -45,7 +56,6 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
-        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fire()
@@ -56,7 +66,6 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
-        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fireAsync()

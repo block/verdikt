@@ -115,10 +115,13 @@ internal class ReteNetwork(
 
     /**
      * Reset all node memories (for session reset).
+     *
+     * Note: [polymorphicNodeCache] is NOT cleared here because it depends only on
+     * the network's structure (alpha node types), which is invariant across sessions.
+     * Preserving it avoids redundant KClass.isInstance scans on subsequent evaluations.
      */
     fun reset() {
         _pendingActivationCount = 0
-        polymorphicNodeCache.clear()
         for (nodes in alphaNodes.values) {
             for (node in nodes) {
                 node.memory.clear()

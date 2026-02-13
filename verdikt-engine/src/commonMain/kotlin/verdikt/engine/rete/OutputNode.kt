@@ -88,7 +88,9 @@ internal class OutputNode<Out : Any>(
      * Fire all pending activations and return paired input facts with their outputs.
      * Clears the pending queue after firing.
      *
-     * @return List of (inputFacts, outputs) pairs for each activation
+     * Null producer outputs are skipped entirely (no Pair/List allocation for no-ops).
+     *
+     * @return List of (inputFacts, outputs) pairs for each activation that produced output
      */
     fun firePendingWithInputs(): List<Pair<List<Any>, List<Out>>> {
         if (pendingSingleFacts.isEmpty() && pendingMultiActivations.isEmpty()) return emptyList()
@@ -97,19 +99,21 @@ internal class OutputNode<Out : Any>(
         val results = ArrayList<Pair<List<Any>, List<Out>>>(totalSize)
         val reusable = reusableSingleFactList
 
-        // Fire single-fact pending
+        // Fire single-fact pending — skip null outputs to avoid allocations
         for (fact in pendingSingleFacts) {
             reusable[0] = fact
             val output = producer(reusable)
-            val outputs = if (output != null) listOf(output) else emptyList()
-            results.add(listOf(fact) to outputs)
+            if (output != null) {
+                results.add(Pair(listOf(fact), listOf(output)))
+            }
         }
 
-        // Fire multi-fact pending
+        // Fire multi-fact pending — skip null outputs to avoid allocations
         for (facts in pendingMultiActivations) {
             val output = producer(facts)
-            val outputs = if (output != null) listOf(output) else emptyList()
-            results.add(facts to outputs)
+            if (output != null) {
+                results.add(Pair(facts, listOf(output)))
+            }
         }
 
         network?.decrementPendingActivations(totalSize)

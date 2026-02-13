@@ -108,7 +108,7 @@ public class ValidationRuleBuilder<Fact : Any> @PublishedApi internal constructo
     @PublishedApi
     internal fun build(): InternalValidationRule<Fact> {
         val resolvedCondition = condition ?: asyncCondition?.let { async ->
-            { _: Fact -> error("Async validation rule '$name' must use fireAsync()") }
+            { _: Fact -> error("Async validation rule '$name' must use evaluateAsync()") }
         }
         requireNotNull(resolvedCondition) { "Validation rule '$name' must have a condition or asyncCondition" }
 

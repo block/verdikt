@@ -1,9 +1,9 @@
 import org.jetbrains.kotlin.allopen.gradle.AllOpenExtension
 
 plugins {
-    kotlin("multiplatform")
-    kotlin("plugin.allopen")
-    id("org.jetbrains.kotlinx.benchmark") version "0.4.13"
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.allopen)
+    alias(libs.plugins.kotlinx.benchmark)
 }
 
 configure<AllOpenExtension> {
@@ -13,8 +13,8 @@ configure<AllOpenExtension> {
 kotlin {
     // JVM is primary benchmark target
     jvm {
-        compilations.all {
-            kotlinOptions.jvmTarget = "11"
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
         }
     }
 
@@ -26,13 +26,13 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(project(":verdikt-engine"))
-                implementation("org.jetbrains.kotlinx:kotlinx-benchmark-runtime:0.4.13")
+                implementation(libs.kotlinx.benchmark.runtime)
             }
         }
 
         val jvmMain by getting {
             dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-benchmark-runtime-jvm:0.4.13")
+                implementation(libs.kotlinx.benchmark.runtime.jvm)
             }
         }
     }

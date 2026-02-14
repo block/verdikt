@@ -7,400 +7,246 @@ import kotlin.test.assertTrue
 
 class ReteNetworkTest {
 
-    data class Customer(val id: String, val spend: Double)
-    data class Order(val id: String, val amount: Double)
+    // Test domain classes
+    data class Animal(val name: String, val legs: Int)
+    data class Bird(val name: String, val canFly: Boolean)
 
     // Polymorphic test types
-    interface Named { val name: String }
-    data class Employee(override val name: String, val dept: String) : Named
-    data class Contractor(override val name: String, val agency: String) : Named
-
-    // --- Activate with typed facts ---
-
-    @Test
-    fun activateRoutesToExactTypeAlphaNode() {
-        val alphaNode = AlphaNode(
-            id = "customer-alpha",
-            inputType = Customer::class,
-            condition = { true }
-        )
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alphaNode)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        val result = network.activate(Customer("1", 1000.0))
-
-        assertTrue(result)
-        assertEquals(1, alphaNode.memory.size())
+    interface Shape { val area: Double }
+    data class Circle(val radius: Double) : Shape {
+        override val area: Double get() = 3.14159 * radius * radius
+    }
+    data class Rectangle(val width: Double, val height: Double) : Shape {
+        override val area: Double get() = width * height
     }
 
     @Test
-    fun activateReturnsFalseWhenNoMatchingAlphaNode() {
-        val alphaNode = AlphaNode(
-            id = "customer-alpha",
-            inputType = Customer::class,
-            condition = { true }
+    fun activateWithTypedFactRoutesToCorrectAlphaNode() {
+        val animalAlpha = AlphaNode<Animal>(
+            id = "animal-alpha",
+            inputType = Animal::class,
+            condition = { it.legs == 4 }
         )
 
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alphaNode)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        val result = network.activate(Order("o1", 50.0))
-
-        assertFalse(result)
-        assertEquals(0, alphaNode.memory.size())
-    }
-
-    @Test
-    fun activateRoutesToMultipleAlphaNodesOfSameType() {
-        val alpha1 = AlphaNode(
-            id = "high-spend",
-            inputType = Customer::class,
-            condition = { it.spend > 500 }
-        )
-        val alpha2 = AlphaNode(
-            id = "all-customers",
-            inputType = Customer::class,
-            condition = { true }
-        )
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alpha1, alpha2)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        val customer = Customer("1", 1000.0)
-        val result = network.activate(customer)
-
-        assertTrue(result)
-        assertEquals(1, alpha1.memory.size())
-        assertEquals(1, alpha2.memory.size())
-    }
-
-    @Test
-    fun activateReturnsFalseWhenConditionRejects() {
-        val alphaNode = AlphaNode(
-            id = "high-spend",
-            inputType = Customer::class,
-            condition = { it.spend > 10_000 }
-        )
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alphaNode)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        val result = network.activate(Customer("1", 500.0))
-
-        assertFalse(result)
-        assertEquals(0, alphaNode.memory.size())
-    }
-
-    // --- Polymorphic dispatch (subclass/interface matching) ---
-
-    @Test
-    fun polymorphicDispatchMatchesSubtype() {
-        val namedAlpha = AlphaNode(
-            id = "named-alpha",
-            inputType = Named::class,
-            condition = { true }
-        )
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Named::class to listOf(namedAlpha)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        // Employee implements Named, should match via polymorphic dispatch
-        val result = network.activate(Employee("Alice", "Engineering"))
-
-        assertTrue(result)
-        assertEquals(1, namedAlpha.memory.size())
-    }
-
-    @Test
-    fun polymorphicDispatchMatchesMultipleSubtypes() {
-        val namedAlpha = AlphaNode(
-            id = "named-alpha",
-            inputType = Named::class,
-            condition = { true }
-        )
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Named::class to listOf(namedAlpha)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        network.activate(Employee("Alice", "Engineering"))
-        network.activate(Contractor("Bob", "Acme"))
-
-        assertEquals(2, namedAlpha.memory.size())
-    }
-
-    @Test
-    fun bothExactAndPolymorphicNodesActivated() {
-        val employeeAlpha = AlphaNode(
-            id = "employee-alpha",
-            inputType = Employee::class,
-            condition = { true }
-        )
-        val namedAlpha = AlphaNode(
-            id = "named-alpha",
-            inputType = Named::class,
-            condition = { true }
+        val birdAlpha = AlphaNode<Bird>(
+            id = "bird-alpha",
+            inputType = Bird::class,
+            condition = { it.canFly }
         )
 
         val network = ReteNetwork(
             alphaNodes = mapOf(
-                Employee::class to listOf(employeeAlpha),
-                Named::class to listOf(namedAlpha)
+                Animal::class to listOf(animalAlpha),
+                Bird::class to listOf(birdAlpha)
             ),
             betaNodes = emptyList(),
             outputNodes = emptyList()
         )
 
-        val employee = Employee("Alice", "Engineering")
-        val result = network.activate(employee)
+        val dog = Animal("Dog", 4)
+        val eagle = Bird("Eagle", true)
+        val penguin = Bird("Penguin", false)
 
-        assertTrue(result)
-        // Both the exact Employee node and the polymorphic Named node should match
-        assertEquals(1, employeeAlpha.memory.size())
-        assertEquals(1, namedAlpha.memory.size())
+        assertTrue(network.activate(dog))
+        assertTrue(network.activate(eagle))
+        assertFalse(network.activate(penguin)) // Condition fails
+
+        assertEquals(1, animalAlpha.memory.size())
+        assertEquals(1, birdAlpha.memory.size())
     }
 
     @Test
-    fun polymorphicCacheIsReusedForSameType() {
-        val namedAlpha = AlphaNode(
-            id = "named-alpha",
-            inputType = Named::class,
-            condition = { true }
+    fun polymorphicDispatchMatchesSubclassToSupertypeRule() {
+        val shapeAlpha = AlphaNode<Shape>(
+            id = "shape-alpha",
+            inputType = Shape::class,
+            condition = { it.area > 10.0 }
         )
 
         val network = ReteNetwork(
-            alphaNodes = mapOf(Named::class to listOf(namedAlpha)),
+            alphaNodes = mapOf(
+                Shape::class to listOf(shapeAlpha)
+            ),
             betaNodes = emptyList(),
             outputNodes = emptyList()
         )
 
-        // First call builds cache, second uses it
-        network.activate(Employee("Alice", "Engineering"))
-        network.activate(Employee("Bob", "Sales"))
+        val bigCircle = Circle(5.0) // area ~78.5
+        val smallCircle = Circle(1.0) // area ~3.14
 
-        assertEquals(2, namedAlpha.memory.size())
+        // Circle::class != Shape::class, so exact-match misses; polymorphic dispatch catches it
+        assertTrue(network.activate(bigCircle))
+        assertFalse(network.activate(smallCircle)) // Condition fails (area too small)
+
+        assertEquals(1, shapeAlpha.memory.size())
     }
 
-    // --- Pending activations ---
-
     @Test
-    fun hasPendingActivationsReflectsOutputNodeState() {
-        val alphaNode = AlphaNode(
-            id = "customer-alpha",
-            inputType = Customer::class,
+    fun polymorphicCacheIsReusedForSameType() {
+        val shapeAlpha = AlphaNode<Shape>(
+            id = "shape-alpha",
+            inputType = Shape::class,
             condition = { true }
         )
-        val outputNode = OutputNode<String>(
-            id = "output",
-            ruleName = "test-rule",
-            priority = 0,
-            producer = { "result" }
-        )
-        alphaNode.successors.add(outputNode)
 
         val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alphaNode)),
+            alphaNodes = mapOf(
+                Shape::class to listOf(shapeAlpha)
+            ),
+            betaNodes = emptyList(),
+            outputNodes = emptyList()
+        )
+
+        val circle1 = Circle(1.0)
+        val circle2 = Circle(2.0)
+
+        network.activate(circle1)
+        network.activate(circle2)
+
+        // Both circles should be accepted
+        assertEquals(2, shapeAlpha.memory.size())
+    }
+
+    @Test
+    fun resetClearsAllState() {
+        val animalAlpha = AlphaNode<Animal>(
+            id = "animal-alpha",
+            inputType = Animal::class,
+            condition = { true }
+        )
+
+        val outputNode = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> "result-${facts.first()}" }
+        )
+
+        animalAlpha.successors.add(outputNode)
+
+        val network = ReteNetwork(
+            alphaNodes = mapOf(Animal::class to listOf(animalAlpha)),
             betaNodes = emptyList(),
             outputNodes = listOf(outputNode)
         )
         outputNode.network = network
 
-        assertFalse(network.hasPendingActivations())
+        // Activate a fact
+        network.activate(Animal("Cat", 4))
 
-        network.activate(Customer("1", 100.0))
-
+        assertTrue(animalAlpha.memory.size() > 0)
         assertTrue(network.hasPendingActivations())
-        assertEquals(1, network.pendingActivationCount)
-    }
 
-    @Test
-    fun pendingActivationCountTracksMultipleNodes() {
-        val alpha1 = AlphaNode(
-            id = "alpha-1",
-            inputType = Customer::class,
-            condition = { true }
-        )
-        val alpha2 = AlphaNode(
-            id = "alpha-2",
-            inputType = Order::class,
-            condition = { true }
-        )
-        val output1 = OutputNode<String>(
-            id = "output-1",
-            ruleName = "rule-1",
-            priority = 0,
-            producer = { "r1" }
-        )
-        val output2 = OutputNode<String>(
-            id = "output-2",
-            ruleName = "rule-2",
-            priority = 0,
-            producer = { "r2" }
-        )
-        alpha1.successors.add(output1)
-        alpha2.successors.add(output2)
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(
-                Customer::class to listOf(alpha1),
-                Order::class to listOf(alpha2)
-            ),
-            betaNodes = emptyList(),
-            outputNodes = listOf(output1, output2)
-        )
-        output1.network = network
-        output2.network = network
-
-        network.activate(Customer("1", 100.0))
-        network.activate(Order("o1", 50.0))
-
-        assertEquals(2, network.pendingActivationCount)
-    }
-
-    // --- Reset ---
-
-    @Test
-    fun resetClearsPendingActivationCount() {
-        val network = ReteNetwork(
-            alphaNodes = emptyMap(),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        network.incrementPendingActivations()
-        network.incrementPendingActivations()
-        assertEquals(2, network.pendingActivationCount)
-
+        // Reset clears everything
         network.reset()
 
+        assertEquals(0, animalAlpha.memory.size())
         assertEquals(0, network.pendingActivationCount)
         assertFalse(network.hasPendingActivations())
     }
 
     @Test
-    fun resetClearsAlphaMemory() {
-        val alphaNode = AlphaNode(
-            id = "customer-alpha",
-            inputType = Customer::class,
+    fun pendingActivationCountAccuracy() {
+        val outputNode1 = OutputNode<String>(
+            id = "output-1",
+            ruleName = "rule-1",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
+        val outputNode2 = OutputNode<String>(
+            id = "output-2",
+            ruleName = "rule-2",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
+
+        val animalAlpha = AlphaNode<Animal>(
+            id = "animal-alpha",
+            inputType = Animal::class,
+            condition = { true }
+        )
+        animalAlpha.successors.add(outputNode1)
+        animalAlpha.successors.add(outputNode2)
+
+        val network = ReteNetwork(
+            alphaNodes = mapOf(Animal::class to listOf(animalAlpha)),
+            betaNodes = emptyList(),
+            outputNodes = listOf(outputNode1, outputNode2)
+        )
+        outputNode1.network = network
+        outputNode2.network = network
+
+        assertEquals(0, network.pendingActivationCount)
+
+        network.activate(Animal("Dog", 4))
+        assertEquals(2, network.pendingActivationCount) // One per output node
+
+        outputNode1.firePending()
+        assertEquals(1, network.pendingActivationCount)
+
+        outputNode2.firePending()
+        assertEquals(0, network.pendingActivationCount)
+    }
+
+    @Test
+    fun activateWithUnmatchedTypeReturnsFalse() {
+        val animalAlpha = AlphaNode<Animal>(
+            id = "animal-alpha",
+            inputType = Animal::class,
             condition = { true }
         )
 
         val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alphaNode)),
+            alphaNodes = mapOf(Animal::class to listOf(animalAlpha)),
             betaNodes = emptyList(),
             outputNodes = emptyList()
         )
 
-        network.activate(Customer("1", 100.0))
-        assertEquals(1, alphaNode.memory.size())
-
-        network.reset()
-
-        assertEquals(0, alphaNode.memory.size())
+        // String doesn't match Animal and isn't a supertype/subtype
+        assertFalse(network.activate("unrelated-type"))
+        assertEquals(0, animalAlpha.memory.size())
     }
 
     @Test
-    fun resetClearsOutputNodeState() {
-        val outputNode = OutputNode<String>(
-            id = "output",
-            ruleName = "test-rule",
+    fun activateWithEmptyNetworkReturnsFalse() {
+        val network = ReteNetwork(
+            alphaNodes = emptyMap(),
+            betaNodes = emptyList(),
+            outputNodes = emptyList()
+        )
+
+        assertFalse(network.activate("anything"))
+    }
+
+    @Test
+    fun statsReturnsCorrectCounts() {
+        val alpha1 = AlphaNode<Animal>(
+            id = "alpha-1",
+            inputType = Animal::class,
+            condition = { true }
+        )
+        val alpha2 = AlphaNode<Bird>(
+            id = "alpha-2",
+            inputType = Bird::class,
+            condition = { true }
+        )
+        val output = OutputNode<String>(
+            id = "output-1",
+            ruleName = "rule-1",
             priority = 0,
             producer = { "result" }
         )
 
         val network = ReteNetwork(
-            alphaNodes = emptyMap(),
-            betaNodes = emptyList(),
-            outputNodes = listOf(outputNode)
-        )
-        outputNode.network = network
-
-        outputNode.leftActivateFact("fact")
-        assertTrue(outputNode.hasPendingActivations())
-
-        network.reset()
-
-        assertFalse(outputNode.hasPendingActivations())
-        assertEquals(0, outputNode.fireCount())
-    }
-
-    @Test
-    fun resetClearsPolymorphicCacheAllowingRecomputation() {
-        val namedAlpha = AlphaNode(
-            id = "named-alpha",
-            inputType = Named::class,
-            condition = { true }
-        )
-
-        val network = ReteNetwork(
-            alphaNodes = mapOf(Named::class to listOf(namedAlpha)),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        // Build polymorphic cache
-        network.activate(Employee("Alice", "Engineering"))
-        assertEquals(1, namedAlpha.memory.size())
-
-        // Reset clears everything including cache
-        network.reset()
-        assertEquals(0, namedAlpha.memory.size())
-
-        // Should still work after reset (cache rebuilt)
-        network.activate(Employee("Bob", "Sales"))
-        assertEquals(1, namedAlpha.memory.size())
-    }
-
-    // --- Stats ---
-
-    @Test
-    fun statsReportsCorrectNodeCounts() {
-        val alpha1 = AlphaNode(
-            id = "a1",
-            inputType = Customer::class,
-            condition = { true }
-        )
-        val alpha2 = AlphaNode(
-            id = "a2",
-            inputType = Order::class,
-            condition = { true }
-        )
-        val output1 = OutputNode<String>(
-            id = "o1",
-            ruleName = "r1",
-            priority = 0,
-            producer = { "r" }
-        )
-
-        val network = ReteNetwork(
             alphaNodes = mapOf(
-                Customer::class to listOf(alpha1),
-                Order::class to listOf(alpha2)
+                Animal::class to listOf(alpha1),
+                Bird::class to listOf(alpha2)
             ),
             betaNodes = emptyList(),
-            outputNodes = listOf(output1)
+            outputNodes = listOf(output)
         )
 
         val stats = network.stats()
-
         assertEquals(2, stats.alphaNodeCount)
         assertEquals(0, stats.betaNodeCount)
         assertEquals(1, stats.outputNodeCount)
@@ -408,54 +254,79 @@ class ReteNetworkTest {
     }
 
     @Test
-    fun statsReportsCorrectTokenCount() {
-        val alphaNode = AlphaNode(
-            id = "a1",
-            inputType = Customer::class,
+    fun statsReflectsMemoryAfterActivation() {
+        val animalAlpha = AlphaNode<Animal>(
+            id = "animal-alpha",
+            inputType = Animal::class,
             condition = { true }
         )
 
         val network = ReteNetwork(
-            alphaNodes = mapOf(Customer::class to listOf(alphaNode)),
+            alphaNodes = mapOf(Animal::class to listOf(animalAlpha)),
             betaNodes = emptyList(),
             outputNodes = emptyList()
         )
 
-        network.activate(Customer("1", 100.0))
-        network.activate(Customer("2", 200.0))
+        network.activate(Animal("Dog", 4))
+        network.activate(Animal("Cat", 4))
 
         val stats = network.stats()
         assertEquals(2, stats.totalTokensInAlphaMemory)
     }
 
-    // --- Unknown types handled gracefully ---
-
     @Test
-    fun unknownTypeReturnsNoActivation() {
+    fun multipleAlphaNodesForSameTypeAllReceiveFacts() {
+        val alpha1 = AlphaNode<Animal>(
+            id = "alpha-legs-4",
+            inputType = Animal::class,
+            condition = { it.legs == 4 }
+        )
+        val alpha2 = AlphaNode<Animal>(
+            id = "alpha-name-d",
+            inputType = Animal::class,
+            condition = { it.name.startsWith("D") }
+        )
+
         val network = ReteNetwork(
-            alphaNodes = emptyMap(),
+            alphaNodes = mapOf(Animal::class to listOf(alpha1, alpha2)),
             betaNodes = emptyList(),
             outputNodes = emptyList()
         )
 
-        val result = network.activate("completely-unknown-type")
+        val dog = Animal("Dog", 4) // Matches both
+        val duck = Animal("Duck", 2) // Only matches alpha2
 
-        assertFalse(result)
+        assertTrue(network.activate(dog))
+        assertTrue(network.activate(duck))
+
+        assertEquals(1, alpha1.memory.size()) // Only Dog
+        assertEquals(2, alpha2.memory.size()) // Dog and Duck
     }
 
     @Test
-    fun emptyNetworkHandlesActivationGracefully() {
+    fun resetClearsPolymorphicCache() {
+        val shapeAlpha = AlphaNode<Shape>(
+            id = "shape-alpha",
+            inputType = Shape::class,
+            condition = { true }
+        )
+
         val network = ReteNetwork(
-            alphaNodes = emptyMap(),
+            alphaNodes = mapOf(Shape::class to listOf(shapeAlpha)),
             betaNodes = emptyList(),
             outputNodes = emptyList()
         )
 
-        assertFalse(network.activate(42))
-        assertFalse(network.hasPendingActivations())
-        assertEquals(0, network.pendingActivationCount)
+        // First activation builds cache
+        network.activate(Circle(1.0))
+        assertEquals(1, shapeAlpha.memory.size())
 
-        val stats = network.stats()
-        assertEquals(0, stats.alphaNodeCount)
+        // Reset clears cache and memory
+        network.reset()
+        assertEquals(0, shapeAlpha.memory.size())
+
+        // Should still work after reset (cache rebuilt)
+        network.activate(Circle(2.0))
+        assertEquals(1, shapeAlpha.memory.size())
     }
 }

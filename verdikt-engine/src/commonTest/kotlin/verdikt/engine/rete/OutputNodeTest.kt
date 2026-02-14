@@ -7,422 +7,332 @@ import kotlin.test.assertTrue
 
 class OutputNodeTest {
 
-    data class InputFact(val value: String)
-    data class OutputFact(val result: String)
-
-    private fun createOutputNode(
-        id: String = "test-output",
-        ruleName: String = "test-rule",
-        priority: Int = 0,
-        producer: (List<Any>) -> OutputFact? = { facts ->
-            val input = facts.first() as InputFact
-            OutputFact("produced-${input.value}")
-        }
-    ): OutputNode<OutputFact> = OutputNode(
-        id = id,
-        ruleName = ruleName,
-        priority = priority,
-        producer = producer
-    )
-
-    // --- Single-fact activation and firing ---
-
     @Test
-    fun singleFactActivationAndFiring() {
-        val node = createOutputNode()
-        val input = InputFact("hello")
+    fun singleFactPendingAndFiring() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> "produced-${facts.first()}" }
+        )
 
-        node.leftActivateFact(input)
+        node.leftActivateFact("hello")
 
         assertTrue(node.hasPendingActivations())
         assertEquals(1, node.pendingCount())
 
         val results = node.firePending()
-
-        assertEquals(1, results.size)
-        assertEquals(OutputFact("produced-hello"), results.first())
+        assertEquals(listOf("produced-hello"), results)
         assertFalse(node.hasPendingActivations())
         assertEquals(0, node.pendingCount())
     }
 
     @Test
-    fun multipleSingleFactActivations() {
-        val node = createOutputNode()
-
-        node.leftActivateFact(InputFact("a"))
-        node.leftActivateFact(InputFact("b"))
-        node.leftActivateFact(InputFact("c"))
-
-        assertEquals(3, node.pendingCount())
-
-        val results = node.firePending()
-
-        assertEquals(3, results.size)
-        assertEquals(OutputFact("produced-a"), results[0])
-        assertEquals(OutputFact("produced-b"), results[1])
-        assertEquals(OutputFact("produced-c"), results[2])
-    }
-
-    // --- Deduplication ---
-
-    @Test
-    fun duplicateSingleFactIsNotQueued() {
-        val node = createOutputNode()
-        val input = InputFact("same")
-
-        node.leftActivateFact(input)
-        node.leftActivateFact(input)
-
-        assertEquals(1, node.pendingCount())
-    }
-
-    @Test
-    fun hasFiredForReturnsTrueAfterActivation() {
-        val node = createOutputNode()
-        val input = InputFact("test")
-
-        assertFalse(node.hasFiredFor(listOf(input)))
-
-        node.leftActivateFact(input)
-
-        assertTrue(node.hasFiredFor(listOf(input)))
-    }
-
-    @Test
-    fun fireCountTracksTotalActivations() {
-        val node = createOutputNode()
-
-        assertEquals(0, node.fireCount())
-
-        node.leftActivateFact(InputFact("a"))
-        node.leftActivateFact(InputFact("b"))
-
-        assertEquals(2, node.fireCount())
-    }
-
-    // --- Multi-fact activation (JoinedToken) ---
-
-    @Test
-    fun multiFactActivationViaJoinedToken() {
+    fun multiFactPendingAndFiring() {
         val node = OutputNode<String>(
-            id = "multi-output",
-            ruleName = "multi-rule",
+            id = "test-output",
+            ruleName = "test-rule",
             priority = 0,
-            producer = { facts ->
-                facts.joinToString("-") { it.toString() }
-            }
-        )
-
-        val joinedToken = JoinedToken(listOf("alpha", "beta"))
-        node.leftActivate(joinedToken)
-
-        assertTrue(node.hasPendingActivations())
-        assertEquals(1, node.pendingCount())
-
-        val results = node.firePending()
-
-        assertEquals(1, results.size)
-        assertEquals("alpha-beta", results.first())
-    }
-
-    @Test
-    fun duplicateJoinedTokenIsNotQueued() {
-        val node = OutputNode<String>(
-            id = "multi-output",
-            ruleName = "multi-rule",
-            priority = 0,
-            producer = { "output" }
+            producer = { facts -> facts.joinToString("-") }
         )
 
         val joinedToken = JoinedToken(listOf("a", "b"))
         node.leftActivate(joinedToken)
-        node.leftActivate(joinedToken)
-
-        assertEquals(1, node.pendingCount())
-    }
-
-    @Test
-    fun hasFiredForMultiFacts() {
-        val node = OutputNode<String>(
-            id = "multi-output",
-            ruleName = "multi-rule",
-            priority = 0,
-            producer = { "output" }
-        )
-
-        val facts = listOf("a", "b")
-        assertFalse(node.hasFiredFor(facts))
-
-        node.leftActivate(JoinedToken(facts))
-
-        assertTrue(node.hasFiredFor(facts))
-    }
-
-    // --- Mixed single and multi-fact ---
-
-    @Test
-    fun mixedSingleAndMultiFactActivations() {
-        var callCount = 0
-        val node = OutputNode<String>(
-            id = "mixed-output",
-            ruleName = "mixed-rule",
-            priority = 0,
-            producer = { facts ->
-                callCount++
-                facts.joinToString(",")
-            }
-        )
-
-        node.leftActivateFact("single-fact")
-        node.leftActivate(JoinedToken(listOf("joined-a", "joined-b")))
-
-        assertEquals(2, node.pendingCount())
-
-        val results = node.firePending()
-
-        assertEquals(2, results.size)
-        assertEquals(2, callCount)
-    }
-
-    // --- firePendingWithInputs ---
-
-    @Test
-    fun firePendingWithInputsReturnsPairedResults() {
-        val node = createOutputNode()
-        val input = InputFact("test")
-
-        node.leftActivateFact(input)
-
-        val results = node.firePendingWithInputs()
-
-        assertEquals(1, results.size)
-        val (inputFacts, outputs) = results.first()
-        assertEquals(listOf(input), inputFacts)
-        assertEquals(listOf(OutputFact("produced-test")), outputs)
-    }
-
-    @Test
-    fun firePendingWithInputsSkipsNullProducerOutputs() {
-        val node = OutputNode<OutputFact>(
-            id = "null-output",
-            ruleName = "null-rule",
-            priority = 0,
-            producer = { _: List<Any> -> null }
-        )
-
-        val fact = "test-fact"
-        node.leftActivateFact(fact)
-
-        assertTrue(node.hasPendingActivations(), "Node should have pending activations")
-        assertEquals(1, node.pendingCount(), "Pending count should be 1")
-
-        val results = node.firePendingWithInputs()
-
-        // Null producer outputs are skipped entirely — no allocation for no-ops
-        assertTrue(results.isEmpty(), "Results should be empty when producer returns null")
-    }
-
-    @Test
-    fun firePendingReturnsEmptyListWhenNothingPending() {
-        val node = createOutputNode()
-
-        val results = node.firePending()
-
-        assertTrue(results.isEmpty())
-    }
-
-    @Test
-    fun firePendingWithInputsReturnsEmptyListWhenNothingPending() {
-        val node = createOutputNode()
-
-        val results = node.firePendingWithInputs()
-
-        assertTrue(results.isEmpty())
-    }
-
-    // --- Reset ---
-
-    @Test
-    fun resetClearsAllState() {
-        val node = createOutputNode()
-
-        node.leftActivateFact(InputFact("a"))
-        node.leftActivateFact(InputFact("b"))
 
         assertTrue(node.hasPendingActivations())
-        assertEquals(2, node.fireCount())
+        assertEquals(1, node.pendingCount())
+
+        val results = node.firePending()
+        assertEquals(1, results.size)
+        assertEquals("a-b", results.first())
+    }
+
+    @Test
+    fun resetClearsPendingState() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
+
+        node.leftActivateFact("hello")
+        node.leftActivate(JoinedToken(listOf("a", "b")))
+
+        assertTrue(node.hasPendingActivations())
+        assertEquals(2, node.pendingCount())
 
         node.reset()
 
         assertFalse(node.hasPendingActivations())
         assertEquals(0, node.pendingCount())
         assertEquals(0, node.fireCount())
-        assertFalse(node.hasFiredFor(listOf(InputFact("a"))))
     }
 
     @Test
-    fun resetAllowsSameFactToBeActivatedAgain() {
-        val node = createOutputNode()
-        val input = InputFact("reuse")
+    fun resetClearsFiredState() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
 
-        node.leftActivateFact(input)
+        node.leftActivateFact("hello")
         node.firePending()
 
-        // Same fact should be deduplicated before reset
-        node.leftActivateFact(input)
-        assertEquals(0, node.pendingCount())
+        assertTrue(node.hasFiredFor(listOf("hello")))
+        assertEquals(1, node.fireCount())
 
-        // After reset, the same fact can be activated again
         node.reset()
-        node.leftActivateFact(input)
+
+        assertFalse(node.hasFiredFor(listOf("hello")))
+        assertEquals(0, node.fireCount())
+    }
+
+    @Test
+    fun firedForSingleDeduplication() {
+        val network = ReteNetwork(emptyMap(), emptyList(), emptyList())
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> "produced-${facts.first()}" }
+        )
+        node.network = network
+
+        node.leftActivateFact("hello")
+        node.leftActivateFact("hello") // duplicate
+
+        assertEquals(1, node.pendingCount())
+        assertEquals(1, network.pendingActivationCount)
+
+        val results = node.firePending()
+        assertEquals(1, results.size)
+        assertEquals(0, network.pendingActivationCount)
+    }
+
+    @Test
+    fun firedForMultiDeduplication() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.joinToString("-") }
+        )
+
+        val token1 = JoinedToken(listOf("a", "b"))
+        val token2 = JoinedToken(listOf("a", "b")) // same facts
+
+        node.leftActivate(token1)
+        node.leftActivate(token2)
+
         assertEquals(1, node.pendingCount())
     }
 
-    // --- clearPending ---
+    @Test
+    fun firePendingWithInputsReturnsCorrectStructure() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> "out-${facts.first()}" }
+        )
+
+        node.leftActivateFact("fact1")
+        node.leftActivateFact("fact2")
+
+        val results = node.firePendingWithInputs()
+
+        assertEquals(2, results.size)
+
+        val first = results[0]
+        assertEquals(listOf("fact1"), first.first)
+        assertEquals(listOf("out-fact1"), first.second)
+
+        val second = results[1]
+        assertEquals(listOf("fact2"), second.first)
+        assertEquals(listOf("out-fact2"), second.second)
+    }
 
     @Test
-    fun clearPendingDiscardsPendingWithoutFiring() {
-        var producerCallCount = 0
+    fun firePendingWithInputsHandlesMultiFacts() {
         val node = OutputNode<String>(
-            id = "clear-test",
-            ruleName = "clear-rule",
+            id = "test-output",
+            ruleName = "test-rule",
             priority = 0,
-            producer = {
-                producerCallCount++
+            producer = { facts -> facts.joinToString("+") }
+        )
+
+        node.leftActivate(JoinedToken(listOf("x", "y")))
+
+        val results = node.firePendingWithInputs()
+
+        assertEquals(1, results.size)
+        assertEquals(listOf("x", "y"), results[0].first)
+        assertEquals(listOf("x+y"), results[0].second)
+    }
+
+    @Test
+    fun producerReturningNullProducesNoOutput() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { _ -> null }
+        )
+
+        node.leftActivateFact("hello")
+
+        val results = node.firePendingWithInputs()
+
+        assertTrue(results.isEmpty(), "Null producer output should be skipped entirely")
+    }
+
+
+    @Test
+    fun networkPendingCountTrackedCorrectly() {
+        val network = ReteNetwork(emptyMap(), emptyList(), emptyList())
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
+        node.network = network
+
+        assertEquals(0, network.pendingActivationCount)
+
+        node.leftActivateFact("a")
+        assertEquals(1, network.pendingActivationCount)
+
+        node.leftActivateFact("b")
+        assertEquals(2, network.pendingActivationCount)
+
+        node.firePending()
+        assertEquals(0, network.pendingActivationCount)
+    }
+
+    @Test
+    fun clearPendingDiscardsWithoutFiring() {
+        var producerCalled = false
+        val network = ReteNetwork(emptyMap(), emptyList(), emptyList())
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { _ ->
+                producerCalled = true
                 "output"
             }
         )
+        node.network = network
 
-        node.leftActivateFact("fact")
-        assertTrue(node.hasPendingActivations())
+        node.leftActivateFact("hello")
+        assertEquals(1, network.pendingActivationCount)
 
         node.clearPending()
 
+        assertFalse(producerCalled)
         assertFalse(node.hasPendingActivations())
-        assertEquals(0, producerCallCount)
+        assertEquals(0, network.pendingActivationCount)
     }
 
     @Test
-    fun clearPendingOnEmptyNodeIsNoOp() {
-        val node = createOutputNode()
-
-        // Should not throw
-        node.clearPending()
-        assertFalse(node.hasPendingActivations())
-    }
-
-    // --- isSkipped ---
-
-    @Test
-    fun skippedNodeIgnoresSingleFactActivation() {
-        val node = createOutputNode()
+    fun isSkippedPreventsActivation() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
         node.isSkipped = true
 
-        node.leftActivateFact(InputFact("ignored"))
+        node.leftActivateFact("hello")
+        node.leftActivate(JoinedToken(listOf("a", "b")))
 
         assertFalse(node.hasPendingActivations())
         assertEquals(0, node.pendingCount())
     }
 
     @Test
-    fun skippedNodeIgnoresJoinedTokenActivation() {
-        val node = OutputNode<String>(
-            id = "skip-test",
-            ruleName = "skip-rule",
-            priority = 0,
-            producer = { "output" }
-        )
-        node.isSkipped = true
-
-        node.leftActivate(JoinedToken(listOf("a", "b")))
-
-        assertFalse(node.hasPendingActivations())
-    }
-
-    @Test
-    fun resetClearsIsSkippedFlag() {
-        val node = createOutputNode()
-        node.isSkipped = true
-
-        node.reset()
-
-        assertFalse(node.isSkipped)
-    }
-
-    // --- leftActivate(Token) delegates to leftActivateFact ---
-
-    @Test
     fun leftActivateTokenDelegatesToFactActivation() {
-        val node = createOutputNode()
-        val input = InputFact("via-token")
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> "out-${facts.first()}" }
+        )
 
-        node.leftActivate(Token(input))
+        val token = Token("hello")
+        node.leftActivate(token)
 
         assertTrue(node.hasPendingActivations())
         assertEquals(1, node.pendingCount())
 
         val results = node.firePending()
-
-        assertEquals(1, results.size)
-        assertEquals(OutputFact("produced-via-token"), results.first())
-    }
-
-    // --- Network pending count integration ---
-
-    @Test
-    fun networkPendingCountIsUpdatedOnActivation() {
-        val network = ReteNetwork(
-            alphaNodes = emptyMap(),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
-        )
-
-        val node = createOutputNode()
-        node.network = network
-
-        assertEquals(0, network.pendingActivationCount)
-
-        node.leftActivateFact(InputFact("a"))
-        assertEquals(1, network.pendingActivationCount)
-
-        node.leftActivateFact(InputFact("b"))
-        assertEquals(2, network.pendingActivationCount)
+        assertEquals(listOf("out-hello"), results)
     }
 
     @Test
-    fun networkPendingCountIsDecrementedOnFire() {
-        val network = ReteNetwork(
-            alphaNodes = emptyMap(),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
+    fun hasFiredForReturnsTrueAfterActivation() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
         )
 
-        val node = createOutputNode()
-        node.network = network
-
-        node.leftActivateFact(InputFact("a"))
-        node.leftActivateFact(InputFact("b"))
-        assertEquals(2, network.pendingActivationCount)
+        node.leftActivateFact("hello")
+        assertFalse(node.hasFiredFor(listOf("world")))
+        assertTrue(node.hasFiredFor(listOf("hello")))
 
         node.firePending()
-        assertEquals(0, network.pendingActivationCount)
+        assertTrue(node.hasFiredFor(listOf("hello")))
     }
 
     @Test
-    fun networkPendingCountIsDecrementedOnClear() {
-        val network = ReteNetwork(
-            alphaNodes = emptyMap(),
-            betaNodes = emptyList(),
-            outputNodes = emptyList()
+    fun hasFiredForMultiFactsWorks() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.joinToString("-") }
         )
 
-        val node = createOutputNode()
-        node.network = network
+        node.leftActivate(JoinedToken(listOf("a", "b")))
+        assertTrue(node.hasFiredFor(listOf("a", "b")))
+        assertFalse(node.hasFiredFor(listOf("a", "c")))
+    }
 
-        node.leftActivateFact(InputFact("a"))
-        assertEquals(1, network.pendingActivationCount)
+    @Test
+    fun firePendingReturnsEmptyWhenNothingPending() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
 
-        node.clearPending()
-        assertEquals(0, network.pendingActivationCount)
+        assertEquals(emptyList(), node.firePending())
+        assertEquals(emptyList(), node.firePendingWithInputs())
+    }
+
+    @Test
+    fun fireCountAccumulatesAcrossMultipleFirings() {
+        val node = OutputNode<String>(
+            id = "test-output",
+            ruleName = "test-rule",
+            priority = 0,
+            producer = { facts -> facts.first().toString() }
+        )
+
+        node.leftActivateFact("a")
+        node.firePending()
+        assertEquals(1, node.fireCount())
+
+        node.leftActivateFact("b")
+        node.firePending()
+        assertEquals(2, node.fireCount())
     }
 }

@@ -304,7 +304,7 @@ class ReteNetworkTest {
     }
 
     @Test
-    fun resetClearsPolymorphicCache() {
+    fun resetClearsAlphaMemoryWhilePreservingPolymorphicCache() {
         val shapeAlpha = AlphaNode<Shape>(
             id = "shape-alpha",
             inputType = Shape::class,
@@ -317,15 +317,15 @@ class ReteNetworkTest {
             outputNodes = emptyList()
         )
 
-        // First activation builds cache
+        // First activation builds polymorphic cache
         network.activate(Circle(1.0))
         assertEquals(1, shapeAlpha.memory.size())
 
-        // Reset clears cache and memory
+        // Reset clears alpha memory but preserves polymorphic cache
         network.reset()
         assertEquals(0, shapeAlpha.memory.size())
 
-        // Should still work after reset (cache rebuilt)
+        // Activation still works after reset (polymorphic cache preserved)
         network.activate(Circle(2.0))
         assertEquals(1, shapeAlpha.memory.size())
     }

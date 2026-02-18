@@ -6,15 +6,14 @@ import verdikt.engine.rete.ReteCompiler
 /**
  * Implementation of [Engine].
  *
- * Rete networks are compiled once at construction time and reused across evaluations.
- * Each evaluation call resets the network's mutable state (alpha memories, output node
- * fired-sets, pending activations) via [verdikt.engine.rete.ReteNetwork.reset] before
- * activating facts, so sessions remain independent despite sharing compiled structure.
+ * Rete networks are compiled once at construction time. Each [evaluate]/[evaluateAsync]
+ * call creates a lightweight copy of the compiled networks (via [verdikt.engine.rete.ReteNetwork.copy])
+ * so that sessions have fully independent mutable state while sharing the compiled structure
+ * (conditions, producers, type mappings).
  *
- * **Thread-safety**: This class is NOT safe for concurrent use. If multiple threads need
- * to evaluate concurrently, each should use its own [Engine] instance. The trade-off is
- * worthwhile: compiling Rete networks is the most expensive part of [evaluate], and
- * avoiding recompilation yields significant throughput gains.
+ * **Thread-safety**: This class is thread-safe. Concurrent [evaluate] calls each get their
+ * own network copies with independent alpha memories, output node fired-sets, and pending
+ * activation counters.
  */
 internal class EngineImpl(
     private val internalPhases: List<PhaseImpl>,

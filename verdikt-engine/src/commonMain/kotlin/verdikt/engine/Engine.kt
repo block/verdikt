@@ -17,8 +17,8 @@ package verdikt.engine
  * ## Thread Safety
  *
  * Engine instances are thread-safe. Multiple threads can call [evaluate] concurrently
- * on the same engine—each call compiles its own Rete network and session with
- * fully independent mutable state.
+ * on the same engine — each call receives a lightweight copy of the pre-compiled Rete
+ * network with fully independent mutable state.
  *
  * ## Example
  *

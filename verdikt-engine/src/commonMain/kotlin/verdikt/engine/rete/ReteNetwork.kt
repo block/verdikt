@@ -114,6 +114,60 @@ internal class ReteNetwork(
     )
 
     /**
+     * Create a lightweight copy of this network with fresh mutable state.
+     *
+     * The copy shares the same structural configuration (conditions, producers, types,
+     * priorities) but has independent mutable state (alpha memories, output node fired-sets,
+     * pending activation counters). This allows the original compiled network to be reused
+     * as a template across concurrent evaluations while each evaluation gets its own
+     * independent mutable state.
+     *
+     * The [polymorphicNodeCache] is NOT copied — each copy rebuilds it on first use.
+     * This is cheap (one O(N) scan per new KClass) and avoids sharing mutable maps.
+     */
+    fun copy(): ReteNetwork {
+        // Create new output nodes with same config but fresh mutable state
+        val oldToNewOutput = mutableMapOf<OutputNode<*>, OutputNode<*>>()
+        val newOutputNodes = outputNodes.map { old ->
+            @Suppress("UNCHECKED_CAST")
+            val castProducer = old.producer as (List<Any>) -> Any?
+            val new = OutputNode<Any>(
+                id = old.id,
+                ruleName = old.ruleName,
+                priority = old.priority,
+                producer = castProducer
+            )
+            oldToNewOutput[old] = new
+            new
+        }
+
+        // Create new alpha nodes with same config, rewired to new output nodes
+        val newAlphaNodes = alphaNodes.mapValues { (_, nodes) ->
+            nodes.map { old ->
+                @Suppress("UNCHECKED_CAST")
+                val newAlpha = AlphaNode(
+                    id = old.id,
+                    inputType = old.inputType as kotlin.reflect.KClass<Any>,
+                    condition = old.condition as (Any) -> Boolean
+                )
+                for (successor in old.successors) {
+                    val newSuccessor = oldToNewOutput[successor]
+                    if (newSuccessor != null) {
+                        newAlpha.successors.add(newSuccessor)
+                    }
+                }
+                newAlpha
+            }
+        }
+
+        val newNetwork = ReteNetwork(newAlphaNodes, emptyList(), newOutputNodes)
+        for (node in newOutputNodes) {
+            node.network = newNetwork
+        }
+        return newNetwork
+    }
+
+    /**
      * Reset all node memories (for session reset).
      *
      * Note: [polymorphicNodeCache] is NOT cleared here because it depends only on

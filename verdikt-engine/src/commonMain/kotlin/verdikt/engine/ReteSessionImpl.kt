@@ -33,8 +33,8 @@ internal class ReteSessionImpl(
     private val collector: EngineEventCollector = EngineEventCollector.EMPTY
 ) : Session {
 
-    // Extract networks and fallback producers from pre-compiled results
-    private val networks: List<ReteNetwork> = compilationResults.map { it.network }
+    // Copy networks so each session has independent mutable state (thread safety)
+    private val networks: List<ReteNetwork> = compilationResults.map { it.network.copy() }
     private val fallbackProducers: List<List<InternalFactProducer<*, *>>> =
         compilationResults.map { it.fallbackProducers }
 

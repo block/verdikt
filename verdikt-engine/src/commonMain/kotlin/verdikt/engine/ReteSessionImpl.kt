@@ -137,6 +137,78 @@ internal class ReteSessionImpl(
         return null
     }
 
+    // --- Shared helpers for sync/async deduplication ---
+
+    private fun checkGuardAndSkip(guard: Guard?, ruleName: String): Boolean {
+        if (guard != null && !guard.allows(context)) {
+            if (ruleName !in skippedRules) {
+                skippedRules[ruleName] = guard.description
+                if (collectEvents) collector.collect(EngineEvent.RuleSkipped(ruleName, guard.description))
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun recordFallbackActivations(
+        ruleName: String,
+        priority: Int,
+        activations: List<Pair<Any, List<Any>>>,
+    ): Boolean {
+        var newFactsProduced = false
+        for ((inputFact, outputs) in activations) {
+            val addedOutputs = mutableListOf<Any>()
+            for (output in outputs) {
+                if (workingMemory.add(output)) {
+                    derivedFacts.add(output)
+                    ruleActivations++
+                    addedOutputs.add(output)
+                    newFactsProduced = true
+                    if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
+                }
+            }
+
+            if (addedOutputs.isNotEmpty()) {
+                traceEntries?.add(RuleActivation(
+                    ruleName = ruleName,
+                    inputFact = inputFact,
+                    outputFacts = addedOutputs,
+                    priority = priority
+                ))
+                if (collectEvents) {
+                    collector.collect(EngineEvent.RuleFired(
+                        ruleName = ruleName,
+                        inputFact = inputFact,
+                        outputFacts = addedOutputs,
+                        priority = priority
+                    ))
+                }
+            }
+        }
+        return newFactsProduced
+    }
+
+    private fun checkIterationLimits() {
+        if (iterations > config.maxIterations) {
+            throw MaxIterationsExceededException(iterations, config.maxIterations)
+        }
+    }
+
+    private fun recordValidationResult(
+        passed: Boolean,
+        rule: InternalValidationRule<Any>,
+        fact: Any,
+        failures: MutableList<Failure<Any>>
+    ) {
+        if (passed) {
+            if (collectEvents) collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
+        } else {
+            val reason = rule.getFailureCause(fact)
+            failures.add(Failure(rule.name, reason))
+            if (collectEvents) collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
+        }
+    }
+
     /**
      * Execute the RETE firing loop: reset network, apply guards, activate facts,
      * and fire pending activations in priority order until stable.
@@ -160,12 +232,7 @@ internal class ReteSessionImpl(
         // Mark skipped output nodes directly via flag (avoids Set lookup in hot loop)
         for (outputNode in network.outputNodes) {
             val producer = producersByName[outputNode.ruleName]
-            val guard = producer?.guard
-            if (guard != null && !guard.allows(context)) {
-                if (outputNode.ruleName !in skippedRules) {
-                    skippedRules[outputNode.ruleName] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
-                }
+            if (checkGuardAndSkip(producer?.guard, outputNode.ruleName)) {
                 outputNode.isSkipped = true
             }
         }
@@ -279,9 +346,7 @@ internal class ReteSessionImpl(
             iterations++
 
             // Check iteration limit to prevent infinite loops
-            if (iterations > config.maxIterations) {
-                throw MaxIterationsExceededException(iterations, config.maxIterations)
-            }
+            checkIterationLimits()
 
             // Check for possible runaway execution (heuristic warning)
             if (!runawayWarningEmitted && iterations > 100) {
@@ -297,45 +362,12 @@ internal class ReteSessionImpl(
             }
 
             for (rule in producers) {
-                // Check guard
-                val guard = rule.guard
-                if (guard != null && !guard.allows(context)) {
-                    if (rule.name !in skippedRules) {
-                        skippedRules[rule.name] = guard.description
-                        if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                    }
-                    continue
-                }
+                if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
                 val activations = tryFireFallbackProducerWithTracing(rule, processedFacts)
-                for ((inputFact, outputs) in activations) {
-                    val addedOutputs = mutableListOf<Any>()
-                    for (output in outputs) {
-                        if (workingMemory.add(output)) {
-                            derivedFacts.add(output)
-                            ruleActivations++
-                            addedOutputs.add(output)
-                            newFactsProduced = true
-                            if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        }
-                    }
-
-                    if (addedOutputs.isNotEmpty()) {
-                        traceEntries?.add(RuleActivation(
-                            ruleName = rule.name,
-                            inputFact = inputFact,
-                            outputFacts = addedOutputs,
-                            priority = rule.priority
-                        ))
-                        if (collectEvents) {
-                            collector.collect(EngineEvent.RuleFired(
-                                ruleName = rule.name,
-                                inputFact = inputFact,
-                                outputFacts = addedOutputs,
-                                priority = rule.priority
-                            ))
-                        }
-                    }
+                @Suppress("UNCHECKED_CAST")
+                if (recordFallbackActivations(rule.name, rule.priority, activations as List<Pair<Any, List<Any>>>)) {
+                    newFactsProduced = true
                 }
             }
         } while (newFactsProduced)
@@ -374,27 +406,15 @@ internal class ReteSessionImpl(
         val failures = mutableListOf<Failure<Any>>()
 
         for (rule in allValidationRules) {
-            val guard = rule.guard
-            if (guard != null && !guard.allows(context)) {
-                if (rule.name !in skippedRules) {
-                    skippedRules[rule.name] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                }
-                continue
-            }
+            if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
             val matchingFacts = workingMemory.ofType(rule.inputType).toList()
 
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
 
-                if (typedRule.evaluate(fact)) {
-                    if (collectEvents) collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
-                } else {
-                    val reason = typedRule.getFailureCause(fact)
-                    failures.add(Failure(rule.name, reason))
-                    if (collectEvents) collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
-                }
+                val passed = typedRule.evaluate(fact)
+                recordValidationResult(passed, typedRule, fact, failures)
             }
         }
 
@@ -454,9 +474,7 @@ internal class ReteSessionImpl(
             iterations++
 
             // Check iteration limit to prevent infinite loops
-            if (iterations > config.maxIterations) {
-                throw MaxIterationsExceededException(iterations, config.maxIterations)
-            }
+            checkIterationLimits()
 
             // Check for possible runaway execution (heuristic warning)
             if (!runawayWarningEmitted && iterations > 100) {
@@ -472,44 +490,12 @@ internal class ReteSessionImpl(
             }
 
             for (rule in producers) {
-                val guard = rule.guard
-                if (guard != null && !guard.allows(context)) {
-                    if (rule.name !in skippedRules) {
-                        skippedRules[rule.name] = guard.description
-                        if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                    }
-                    continue
-                }
+                if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
                 val activations = tryFireFallbackProducerAsyncWithTracing(rule, processedFacts)
-                for ((inputFact, outputs) in activations) {
-                    val addedOutputs = mutableListOf<Any>()
-                    for (output in outputs) {
-                        if (workingMemory.add(output)) {
-                            derivedFacts.add(output)
-                            ruleActivations++
-                            addedOutputs.add(output)
-                            newFactsProduced = true
-                            if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        }
-                    }
-
-                    if (addedOutputs.isNotEmpty()) {
-                        traceEntries?.add(RuleActivation(
-                            ruleName = rule.name,
-                            inputFact = inputFact,
-                            outputFacts = addedOutputs,
-                            priority = rule.priority
-                        ))
-                        if (collectEvents) {
-                            collector.collect(EngineEvent.RuleFired(
-                                ruleName = rule.name,
-                                inputFact = inputFact,
-                                outputFacts = addedOutputs,
-                                priority = rule.priority
-                            ))
-                        }
-                    }
+                @Suppress("UNCHECKED_CAST")
+                if (recordFallbackActivations(rule.name, rule.priority, activations as List<Pair<Any, List<Any>>>)) {
+                    newFactsProduced = true
                 }
             }
         } while (newFactsProduced)
@@ -548,27 +534,15 @@ internal class ReteSessionImpl(
         val failures = mutableListOf<Failure<Any>>()
 
         for (rule in allValidationRules) {
-            val guard = rule.guard
-            if (guard != null && !guard.allows(context)) {
-                if (rule.name !in skippedRules) {
-                    skippedRules[rule.name] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                }
-                continue
-            }
+            if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
             val matchingFacts = workingMemory.ofType(rule.inputType).toList()
 
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
 
-                if (typedRule.evaluateAsync(fact)) {
-                    if (collectEvents) collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
-                } else {
-                    val reason = typedRule.getFailureCause(fact)
-                    failures.add(Failure(rule.name, reason))
-                    if (collectEvents) collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
-                }
+                val passed = typedRule.evaluateAsync(fact)
+                recordValidationResult(passed, typedRule, fact, failures)
             }
         }
 

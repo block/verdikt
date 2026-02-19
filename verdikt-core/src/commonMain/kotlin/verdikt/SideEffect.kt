@@ -103,5 +103,6 @@ internal class ObservedRuleSet<Fact, Cause : Any>(
         return verdict
     }
 
-    override fun plus(other: RuleSet<Fact, Cause>): RuleSet<Fact, Cause> = delegate.plus(other)
+    override fun plus(other: RuleSet<Fact, Cause>): RuleSet<Fact, Cause> =
+        ObservedRuleSet(delegate.plus(other), observer)
 }

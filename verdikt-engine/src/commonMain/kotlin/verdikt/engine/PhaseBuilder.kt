@@ -107,7 +107,7 @@ public class PhaseBuilder @PublishedApi internal constructor(
                 priority = 0,  // core rules don't have priority
                 guard = null,  // core rules don't have guard
                 inputType = Fact::class,
-                condition = { error("Async rule '${rule.name}' must use fireAsync()") },
+                condition = { error("Async rule '${rule.name}' must use evaluateAsync()") },
                 asyncCondition = rule::evaluate,
                 failureReason = { fact -> rule.failureReason(fact) }
             )

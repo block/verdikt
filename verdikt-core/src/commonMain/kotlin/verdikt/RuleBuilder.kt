@@ -86,7 +86,8 @@ public class RuleBuilder<Fact, Cause : Any> internal constructor(private val nam
         // Generate default failure reason if not provided
         // This cast is safe when Cause is Any (the default case)
         val resolvedFailureCause: (Fact) -> Cause = failureReason ?: {
-            (description.ifBlank { "Rule '$name' failed" }) as Cause
+            (description.ifBlank { "Rule '$name' failed" }) as? Cause
+                ?: error("Rule '$name' requires an onFailure handler when Cause is not compatible with String")
         }
 
         return InternalRule(

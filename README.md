@@ -1,3 +1,7 @@
+[![CI](https://github.com/block/verdikt/actions/workflows/ci.yml/badge.svg)](https://github.com/block/verdikt/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/xyz.block/verdikt-core)](https://central.sonatype.com/artifact/xyz.block/verdikt-core)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Kotlin](https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/docs/multiplatform.html)
 # Verdikt
 
 A type-safe, multiplatform rules engine for Kotlin.
@@ -5,6 +9,8 @@ A type-safe, multiplatform rules engine for Kotlin.
 Verdikt provides a clean DSL for defining business rules that evaluate facts and return structured verdicts. It supports synchronous and asynchronous rules, accumulated failures, composable rule sets, and comprehensive testing utilities.
 
 ## Installation
+
+**Requirements:** JDK 11 or higher
 
 ```kotlin
 // build.gradle.kts
@@ -48,6 +54,10 @@ when (verdict) {
     is Verdict.Fail -> verdict.failures.forEach { println(it) }
 }
 ```
+
+## Demo App
+
+A [Compose Multiplatform demo app](demo/) is included, showcasing both core rule evaluation and the production rules engine on Desktop, Android, iOS, and Web.
 
 ## Stability
 
@@ -127,12 +137,12 @@ val allRules = rules<Player, String> {
 
 ### Verdicts
 
-Rule evaluation returns a `Verdict<Reason>`:
+Rule evaluation returns a `Verdict<Cause>`:
 
 ```kotlin
-sealed interface Verdict<out Reason : Any> {
+sealed interface Verdict<out Cause : Any> {
     data object Pass : Verdict<Nothing>
-    data class Fail<out Reason : Any>(val failures: List<Failure<Reason>>) : Verdict<Reason>
+    data class Fail<out Cause : Any>(val failures: List<Failure<Cause>>) : Verdict<Cause>
 }
 ```
 
@@ -167,7 +177,7 @@ verdict.failuresMatching { it.reason is MyError }  // Filter failures
 
 ### Typed Failure Reasons
 
-Failure reasons can be any type, not just strings. The `Reason` type is specified as the second type parameter on `RuleSet`:
+Failure reasons can be any type, not just strings. The `Cause` type is specified as the second type parameter on `RuleSet`:
 
 ```kotlin
 // Define typed error reasons
@@ -447,16 +457,13 @@ engine.evaluateAsFlow(facts).collect { event ->
 
 ### Performance
 
-The engine uses **type-based indexing** for efficient fact lookups. When querying facts by type
-(e.g., `facts.ofType<Customer>()`), lookups are O(1) instead of O(n) linear scans.
+The engine implements a **RETE network** for efficient forward-chaining rule evaluation. Rules are compiled into a discrimination network at engine construction time, then reused across evaluations:
 
-**Algorithm Decision**: We evaluated Rete, TREAT, and LEAPS algorithms commonly used in production
-rule systems. Type-based indexing was chosen because:
+- **Alpha nodes** perform type-based filtering and condition testing, routing each inserted fact only to the rules that match its type
+- **Beta nodes** handle joins when rules depend on multiple fact types
+- **Output nodes** fire rule actions, producing new facts that re-enter the network
 
-- Verdikt's API primarily uses single-type conditions (`produce<Customer, VipStatus>`)
-- Simple implementation maintains multiplatform compatibility
-- Provides 5-10x speedup for type-based lookups with minimal memory overhead
-- Architecture supports future Rete-style enhancements if complex join optimization is needed
+This architecture avoids redundant condition evaluation — when a new fact is inserted, only the relevant subset of rules is tested rather than scanning all rules linearly. The network is compiled once by `ReteCompiler` and reset between evaluations for zero-allocation reuse.
 
 ## Testing
 
@@ -504,11 +511,11 @@ Verdikt is built with Kotlin Multiplatform and supports:
 
 | Type | Description |
 |------|-------------|
-| `Rule<Fact, Reason>` | Interface for synchronous rules with typed failure reasons |
-| `AsyncRule<Fact, Reason>` | Interface for async rules (I/O operations) with typed failure reasons |
-| `RuleSet<Fact, Reason>` | Interface for organizing rules with typed failure reasons |
-| `Verdict<Reason>` | Sealed interface: `Pass` or `Fail<Reason>` with typed failures |
-| `Failure<Reason>` | Structured failure with rule name and typed reason |
+| `Rule<Fact, Cause>` | Interface for synchronous rules with typed failure reasons |
+| `AsyncRule<Fact, Cause>` | Interface for async rules (I/O operations) with typed failure reasons |
+| `RuleSet<Fact, Cause>` | Interface for organizing rules with typed failure reasons |
+| `Verdict<Cause>` | Sealed interface: `Pass` or `Fail<Cause>` with typed failures |
+| `Failure<Cause>` | Structured failure with rule name and typed reason |
 
 ### Engine Types (verdikt-engine)
 
@@ -532,8 +539,8 @@ Verdikt is built with Kotlin Multiplatform and supports:
 
 | Function | Description |
 |----------|-------------|
-| `rules<Fact, Reason> { }` | Creates a rule set with typed failure reasons |
-| `rule<Fact, Reason>(name) { }` | Creates a standalone `Rule<Fact, Reason>` |
+| `rules<Fact, Cause> { }` | Creates a rule set with typed failure reasons |
+| `rule<Fact, Cause>(name) { }` | Creates a standalone `Rule<Fact, Cause>` |
 | `engine(config?) { }` | Creates a forward-chaining production rules engine with optional config |
 | `ruleContext { }` | Creates a type-safe context for guards |
 
@@ -553,7 +560,7 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | Method | Description |
 |--------|-------------|
 | `rule(name) { }` | Add inline rule (use `asyncCondition` for async) |
-| `add(rule)` | Add a `Rule<Fact, Reason>` or `AsyncRule<Fact, Reason>` |
+| `add(rule)` | Add a `Rule<Fact, Cause>` or `AsyncRule<Fact, Cause>` |
 | `include(ruleSet)` | Include rules from another set |
 
 ### RuleSet Methods
@@ -585,12 +592,12 @@ Verdikt is built with Kotlin Multiplatform and supports:
 | `failures` | List of `Failure<*>` objects |
 | `messages` | Formatted failure messages as strings |
 
-### Failure<Reason> Properties
+### Failure<Cause> Properties
 
 | Member | Description |
 |--------|-------------|
 | `ruleName` | Name of the failed rule |
-| `reason` | The failure reason (typed as `Reason`) |
+| `reason` | The failure reason (typed as `Cause`) |
 
 ### EngineResult Methods
 

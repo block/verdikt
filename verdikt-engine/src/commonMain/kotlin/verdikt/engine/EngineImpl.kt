@@ -1,13 +1,19 @@
 package verdikt.engine
 
+import verdikt.engine.rete.CompilationResult
 import verdikt.engine.rete.ReteCompiler
 
 /**
  * Implementation of [Engine].
  *
- * Rete networks are compiled per evaluation call, giving each session fully independent
- * mutable state. This ensures thread-safety: multiple threads can call [evaluate] or
- * [evaluateAsync] concurrently on the same [Engine] instance without synchronization.
+ * Rete networks are compiled once at construction time. Each [evaluate]/[evaluateAsync]
+ * call creates a lightweight copy of the compiled networks (via [verdikt.engine.rete.ReteNetwork.copy])
+ * so that sessions have fully independent mutable state while sharing the compiled structure
+ * (conditions, producers, type mappings).
+ *
+ * **Thread-safety**: This class is thread-safe. Concurrent [evaluate] calls each get their
+ * own network copies with independent alpha memories, output node fired-sets, and pending
+ * activation counters.
  */
 internal class EngineImpl(
     private val internalPhases: List<PhaseImpl>,
@@ -22,6 +28,10 @@ internal class EngineImpl(
             validationRules = phase.validationRules.sortedByDescending { it.priority }
         )
     }
+
+    // Compile Rete networks once at construction time; reset() clears mutable state per evaluation
+    private val compilationResults: List<CompilationResult> =
+        processedPhases.map { ReteCompiler().compile(it.factProducers) }
 
     override val phases: List<Phase>
         get() = internalPhases
@@ -45,7 +55,6 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
-        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fire()
@@ -56,7 +65,6 @@ internal class EngineImpl(
         context: RuleContext,
         collector: EngineEventCollector
     ): EngineResult {
-        val compilationResults = processedPhases.map { ReteCompiler().compile(it.factProducers) }
         val session = ReteSessionImpl(processedPhases, compilationResults, config, context, collector)
         session.insertAll(facts)
         return session.fireAsync()

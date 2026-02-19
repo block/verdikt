@@ -139,11 +139,11 @@ public class FactProducerBuilder<In : Any, Out : Any> @PublishedApi internal con
 
         // Create fallback condition for sync execution of async producers
         val resolvedCondition: (In) -> Boolean = condition
-            ?: { _: In -> error("Async fact producer '$name' must use fireAsync()") }
+            ?: { _: In -> error("Async fact producer '$name' must use evaluateAsync()") }
 
         // Create fallback output for sync execution
         val resolvedOutputFn: (In) -> Out = outputFn
-            ?: { _: In -> error("Async fact producer '$name' must use fireAsync()") }
+            ?: { _: In -> error("Async fact producer '$name' must use evaluateAsync()") }
 
         return InternalFactProducer(
             name = name,

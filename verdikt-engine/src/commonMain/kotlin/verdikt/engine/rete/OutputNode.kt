@@ -7,7 +7,6 @@ package verdikt.engine.rete
  * 1. Check if this input combination has already fired
  * 2. If not, queue the activation (or fire immediately if not using priority ordering)
  * 3. When explicitly fired, invoke the producer to create output fact(s)
- * 4. Invoke the callback to insert produced facts into working memory
  *
  * The de-duplication prevents the same rule from firing multiple times
  * for the same input facts.
@@ -46,9 +45,6 @@ internal class OutputNode<Out : Any>(
      */
     private val reusableSingleFactList = ArrayList<Any>(1).apply { add(Unit) }
 
-    /** Callback to insert produced facts into working memory */
-    var onProduce: ((Out) -> Unit)? = null
-
     /** Reference to parent network for pending activation counting */
     internal var network: ReteNetwork? = null
 
@@ -60,7 +56,7 @@ internal class OutputNode<Out : Any>(
         if (fact in firedForSingle) return
         firedForSingle.add(fact)
         pendingSingleFacts.add(fact)
-        network?.let { it.pendingActivationCount++ }
+        network?.incrementPendingActivations()
     }
 
     override fun leftActivate(token: Token<*>) {
@@ -74,7 +70,7 @@ internal class OutputNode<Out : Any>(
         if (facts in firedForMulti) return
         firedForMulti.add(facts)
         pendingMultiActivations.add(facts)
-        network?.let { it.pendingActivationCount++ }
+        network?.incrementPendingActivations()
     }
 
     /**
@@ -92,38 +88,35 @@ internal class OutputNode<Out : Any>(
      * Fire all pending activations and return paired input facts with their outputs.
      * Clears the pending queue after firing.
      *
-     * @return List of (inputFacts, outputs) pairs for each activation
+     * Null producer outputs are skipped entirely (no Pair/List allocation for no-ops).
+     *
+     * @return List of (inputFacts, outputs) pairs for each activation that produced output
      */
     fun firePendingWithInputs(): List<Pair<List<Any>, List<Out>>> {
         if (pendingSingleFacts.isEmpty() && pendingMultiActivations.isEmpty()) return emptyList()
 
         val totalSize = pendingSingleFacts.size + pendingMultiActivations.size
         val results = ArrayList<Pair<List<Any>, List<Out>>>(totalSize)
-        val callback = onProduce
         val reusable = reusableSingleFactList
 
-        // Fire single-fact pending
+        // Fire single-fact pending — skip null outputs to avoid allocations
         for (fact in pendingSingleFacts) {
             reusable[0] = fact
             val output = producer(reusable)
-            val outputs = if (output != null) listOf(output) else emptyList()
-            results.add(listOf(fact) to outputs)
-            if (callback != null && output != null) {
-                callback(output)
+            if (output != null) {
+                results.add(Pair(listOf(fact), listOf(output)))
             }
         }
 
-        // Fire multi-fact pending
+        // Fire multi-fact pending — skip null outputs to avoid allocations
         for (facts in pendingMultiActivations) {
             val output = producer(facts)
-            val outputs = if (output != null) listOf(output) else emptyList()
-            results.add(facts to outputs)
-            if (callback != null && output != null) {
-                callback(output)
+            if (output != null) {
+                results.add(Pair(facts, listOf(output)))
             }
         }
 
-        network?.let { it.pendingActivationCount -= totalSize }
+        network?.decrementPendingActivations(totalSize)
         pendingSingleFacts.clear()
         pendingMultiActivations.clear()
         return results
@@ -136,7 +129,7 @@ internal class OutputNode<Out : Any>(
     fun clearPending() {
         val totalSize = pendingSingleFacts.size + pendingMultiActivations.size
         if (totalSize > 0) {
-            network?.let { it.pendingActivationCount -= totalSize }
+            network?.decrementPendingActivations(totalSize)
             pendingSingleFacts.clear()
             pendingMultiActivations.clear()
         }

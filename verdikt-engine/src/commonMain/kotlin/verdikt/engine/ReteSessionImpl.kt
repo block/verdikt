@@ -33,8 +33,8 @@ internal class ReteSessionImpl(
     private val collector: EngineEventCollector = EngineEventCollector.EMPTY
 ) : Session {
 
-    // Extract networks and fallback producers from pre-compiled results
-    private val networks: List<ReteNetwork> = compilationResults.map { it.network }
+    // Copy networks so each session has independent mutable state (thread safety)
+    private val networks: List<ReteNetwork> = compilationResults.map { it.network.copy() }
     private val fallbackProducers: List<List<InternalFactProducer<*, *>>> =
         compilationResults.map { it.fallbackProducers }
 
@@ -44,6 +44,9 @@ internal class ReteSessionImpl(
 
     // Skip event allocation when collector is EMPTY (Bottleneck 7)
     private val collectEvents = collector !== EngineEventCollector.EMPTY
+
+    // Fast check: skip addedOutputs list construction when neither tracing nor events are active
+    private val recordActivations = config.enableTracing || collectEvents
 
     // Working memory
     private val workingMemory = IndexedWorkingMemory()
@@ -104,15 +107,17 @@ internal class ReteSessionImpl(
         // Evaluate validation rules
         val verdict = evaluateValidationRules()
 
+        // Session is discarded after this — hand off internal collections directly
+        // to avoid defensive copies (toSet/toMap/toList).
         val result = EngineResult(
             facts = workingMemory.all(),
-            derived = derivedFacts.toSet(),
+            derived = derivedFacts,
             verdict = verdict,
-            skipped = skippedRules.toMap(),
+            skipped = skippedRules,
             ruleActivations = ruleActivations,
             iterations = iterations,
-            trace = traceEntries?.toList() ?: emptyList(),
-            warnings = warnings.toList()
+            trace = traceEntries ?: emptyList(),
+            warnings = warnings
         )
 
         if (collectEvents) collector.collect(EngineEvent.Completed(result))
@@ -130,6 +135,78 @@ internal class ReteSessionImpl(
             }
         }
         return null
+    }
+
+    // --- Shared helpers for sync/async deduplication ---
+
+    private fun checkGuardAndSkip(guard: Guard?, ruleName: String): Boolean {
+        if (guard != null && !guard.allows(context)) {
+            if (ruleName !in skippedRules) {
+                skippedRules[ruleName] = guard.description
+                if (collectEvents) collector.collect(EngineEvent.RuleSkipped(ruleName, guard.description))
+            }
+            return true
+        }
+        return false
+    }
+
+    private fun recordFallbackActivations(
+        ruleName: String,
+        priority: Int,
+        activations: List<Pair<Any, List<Any>>>,
+    ): Boolean {
+        var newFactsProduced = false
+        for ((inputFact, outputs) in activations) {
+            val addedOutputs = mutableListOf<Any>()
+            for (output in outputs) {
+                if (workingMemory.add(output)) {
+                    derivedFacts.add(output)
+                    ruleActivations++
+                    addedOutputs.add(output)
+                    newFactsProduced = true
+                    if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
+                }
+            }
+
+            if (addedOutputs.isNotEmpty()) {
+                traceEntries?.add(RuleActivation(
+                    ruleName = ruleName,
+                    inputFact = inputFact,
+                    outputFacts = addedOutputs,
+                    priority = priority
+                ))
+                if (collectEvents) {
+                    collector.collect(EngineEvent.RuleFired(
+                        ruleName = ruleName,
+                        inputFact = inputFact,
+                        outputFacts = addedOutputs,
+                        priority = priority
+                    ))
+                }
+            }
+        }
+        return newFactsProduced
+    }
+
+    private fun checkIterationLimits() {
+        if (iterations > config.maxIterations) {
+            throw MaxIterationsExceededException(iterations, config.maxIterations)
+        }
+    }
+
+    private fun recordValidationResult(
+        passed: Boolean,
+        rule: InternalValidationRule<Any>,
+        fact: Any,
+        failures: MutableList<Failure<Any>>
+    ) {
+        if (passed) {
+            if (collectEvents) collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
+        } else {
+            val reason = rule.getFailureCause(fact)
+            failures.add(Failure(rule.name, reason))
+            if (collectEvents) collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
+        }
     }
 
     /**
@@ -155,19 +232,15 @@ internal class ReteSessionImpl(
         // Mark skipped output nodes directly via flag (avoids Set lookup in hot loop)
         for (outputNode in network.outputNodes) {
             val producer = producersByName[outputNode.ruleName]
-            val guard = producer?.guard
-            if (guard != null && !guard.allows(context)) {
-                if (outputNode.ruleName !in skippedRules) {
-                    skippedRules[outputNode.ruleName] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(outputNode.ruleName, guard.description))
-                }
+            if (checkGuardAndSkip(producer?.guard, outputNode.ruleName)) {
                 outputNode.isSkipped = true
             }
         }
 
-        // Activate initial facts through Rete network (queues activations)
-        val initialFacts = workingMemory.snapshot()
-        for (fact in initialFacts) {
+        // Activate initial facts through Rete network (queues activations).
+        // Safe to iterate without copy: activation only enqueues into output nodes,
+        // it does not modify workingMemory.
+        workingMemory.forEach { fact ->
             network.activate(fact)
         }
 
@@ -196,46 +269,57 @@ internal class ReteSessionImpl(
             val activationsWithOutputs = nodeToFire.firePendingWithInputs()
 
             for ((inputFacts, outputs) in activationsWithOutputs) {
-                // Optimization: avoid mutableListOf allocation for the common single-output case.
-                // firstAdded/extraAdded tracks outputs without eagerly creating a list.
-                var firstAdded: Any? = null
-                var extraAdded: MutableList<Any>? = null
+                if (recordActivations) {
+                    // Track which outputs were newly added for trace/event recording.
+                    // Uses firstAdded/extraAdded to avoid mutableListOf in the common single-output case.
+                    var firstAdded: Any? = null
+                    var extraAdded: MutableList<Any>? = null
 
-                for (output in outputs) {
-                    if (workingMemory.add(output)) {
-                        derivedFacts.add(output)
-                        ruleActivations++
-                        if (firstAdded == null) {
-                            firstAdded = output
-                        } else {
-                            if (extraAdded == null) extraAdded = mutableListOf()
-                            extraAdded.add(output)
+                    for (output in outputs) {
+                        if (workingMemory.add(output)) {
+                            derivedFacts.add(output)
+                            ruleActivations++
+                            if (firstAdded == null) {
+                                firstAdded = output
+                            } else {
+                                if (extraAdded == null) extraAdded = mutableListOf()
+                                extraAdded.add(output)
+                            }
+                            if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
+                            network.activate(output)
                         }
-                        if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        network.activate(output)
                     }
-                }
 
-                if (firstAdded != null) {
-                    val inputFact = inputFacts.first()
-                    val addedOutputs = if (extraAdded != null) {
-                        buildList { add(firstAdded); addAll(extraAdded) }
-                    } else {
-                        listOf(firstAdded)
-                    }
-                    traceEntries?.add(RuleActivation(
-                        ruleName = nodeToFire.ruleName,
-                        inputFact = inputFact,
-                        outputFacts = addedOutputs,
-                        priority = nodeToFire.priority
-                    ))
-                    if (collectEvents) {
-                        collector.collect(EngineEvent.RuleFired(
+                    if (firstAdded != null) {
+                        val inputFact = inputFacts.first()
+                        val addedOutputs = if (extraAdded != null) {
+                            buildList { add(firstAdded); addAll(extraAdded) }
+                        } else {
+                            listOf(firstAdded)
+                        }
+                        traceEntries?.add(RuleActivation(
                             ruleName = nodeToFire.ruleName,
                             inputFact = inputFact,
                             outputFacts = addedOutputs,
                             priority = nodeToFire.priority
                         ))
+                        if (collectEvents) {
+                            collector.collect(EngineEvent.RuleFired(
+                                ruleName = nodeToFire.ruleName,
+                                inputFact = inputFact,
+                                outputFacts = addedOutputs,
+                                priority = nodeToFire.priority
+                            ))
+                        }
+                    }
+                } else {
+                    // Fast path: no tracing or events — just insert, track, and activate
+                    for (output in outputs) {
+                        if (workingMemory.add(output)) {
+                            derivedFacts.add(output)
+                            ruleActivations++
+                            network.activate(output)
+                        }
                     }
                 }
             }
@@ -262,9 +346,7 @@ internal class ReteSessionImpl(
             iterations++
 
             // Check iteration limit to prevent infinite loops
-            if (iterations > config.maxIterations) {
-                throw MaxIterationsExceededException(iterations, config.maxIterations)
-            }
+            checkIterationLimits()
 
             // Check for possible runaway execution (heuristic warning)
             if (!runawayWarningEmitted && iterations > 100) {
@@ -280,45 +362,12 @@ internal class ReteSessionImpl(
             }
 
             for (rule in producers) {
-                // Check guard
-                val guard = rule.guard
-                if (guard != null && !guard.allows(context)) {
-                    if (rule.name !in skippedRules) {
-                        skippedRules[rule.name] = guard.description
-                        if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                    }
-                    continue
-                }
+                if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
                 val activations = tryFireFallbackProducerWithTracing(rule, processedFacts)
-                for ((inputFact, outputs) in activations) {
-                    val addedOutputs = mutableListOf<Any>()
-                    for (output in outputs) {
-                        if (workingMemory.add(output)) {
-                            derivedFacts.add(output)
-                            ruleActivations++
-                            addedOutputs.add(output)
-                            newFactsProduced = true
-                            if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        }
-                    }
-
-                    if (addedOutputs.isNotEmpty()) {
-                        traceEntries?.add(RuleActivation(
-                            ruleName = rule.name,
-                            inputFact = inputFact,
-                            outputFacts = addedOutputs,
-                            priority = rule.priority
-                        ))
-                        if (collectEvents) {
-                            collector.collect(EngineEvent.RuleFired(
-                                ruleName = rule.name,
-                                inputFact = inputFact,
-                                outputFacts = addedOutputs,
-                                priority = rule.priority
-                            ))
-                        }
-                    }
+                @Suppress("UNCHECKED_CAST")
+                if (recordFallbackActivations(rule.name, rule.priority, activations as List<Pair<Any, List<Any>>>)) {
+                    newFactsProduced = true
                 }
             }
         } while (newFactsProduced)
@@ -357,27 +406,15 @@ internal class ReteSessionImpl(
         val failures = mutableListOf<Failure<Any>>()
 
         for (rule in allValidationRules) {
-            val guard = rule.guard
-            if (guard != null && !guard.allows(context)) {
-                if (rule.name !in skippedRules) {
-                    skippedRules[rule.name] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                }
-                continue
-            }
+            if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
             val matchingFacts = workingMemory.ofType(rule.inputType).toList()
 
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
 
-                if (typedRule.evaluate(fact)) {
-                    if (collectEvents) collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
-                } else {
-                    val reason = typedRule.getFailureCause(fact)
-                    failures.add(Failure(rule.name, reason))
-                    if (collectEvents) collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
-                }
+                val passed = typedRule.evaluate(fact)
+                recordValidationResult(passed, typedRule, fact, failures)
             }
         }
 
@@ -401,15 +438,16 @@ internal class ReteSessionImpl(
         // Evaluate validation rules (async)
         val verdict = evaluateValidationRulesAsync()
 
+        // Session is discarded after this — hand off internal collections directly
         val result = EngineResult(
             facts = workingMemory.all(),
-            derived = derivedFacts.toSet(),
+            derived = derivedFacts,
             verdict = verdict,
-            skipped = skippedRules.toMap(),
+            skipped = skippedRules,
             ruleActivations = ruleActivations,
             iterations = iterations,
-            trace = traceEntries?.toList() ?: emptyList(),
-            warnings = warnings.toList()
+            trace = traceEntries ?: emptyList(),
+            warnings = warnings
         )
 
         if (collectEvents) collector.collect(EngineEvent.Completed(result))
@@ -436,9 +474,7 @@ internal class ReteSessionImpl(
             iterations++
 
             // Check iteration limit to prevent infinite loops
-            if (iterations > config.maxIterations) {
-                throw MaxIterationsExceededException(iterations, config.maxIterations)
-            }
+            checkIterationLimits()
 
             // Check for possible runaway execution (heuristic warning)
             if (!runawayWarningEmitted && iterations > 100) {
@@ -454,44 +490,12 @@ internal class ReteSessionImpl(
             }
 
             for (rule in producers) {
-                val guard = rule.guard
-                if (guard != null && !guard.allows(context)) {
-                    if (rule.name !in skippedRules) {
-                        skippedRules[rule.name] = guard.description
-                        if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                    }
-                    continue
-                }
+                if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
                 val activations = tryFireFallbackProducerAsyncWithTracing(rule, processedFacts)
-                for ((inputFact, outputs) in activations) {
-                    val addedOutputs = mutableListOf<Any>()
-                    for (output in outputs) {
-                        if (workingMemory.add(output)) {
-                            derivedFacts.add(output)
-                            ruleActivations++
-                            addedOutputs.add(output)
-                            newFactsProduced = true
-                            if (collectEvents) collector.collect(EngineEvent.FactInserted(output, isDerived = true))
-                        }
-                    }
-
-                    if (addedOutputs.isNotEmpty()) {
-                        traceEntries?.add(RuleActivation(
-                            ruleName = rule.name,
-                            inputFact = inputFact,
-                            outputFacts = addedOutputs,
-                            priority = rule.priority
-                        ))
-                        if (collectEvents) {
-                            collector.collect(EngineEvent.RuleFired(
-                                ruleName = rule.name,
-                                inputFact = inputFact,
-                                outputFacts = addedOutputs,
-                                priority = rule.priority
-                            ))
-                        }
-                    }
+                @Suppress("UNCHECKED_CAST")
+                if (recordFallbackActivations(rule.name, rule.priority, activations as List<Pair<Any, List<Any>>>)) {
+                    newFactsProduced = true
                 }
             }
         } while (newFactsProduced)
@@ -530,27 +534,15 @@ internal class ReteSessionImpl(
         val failures = mutableListOf<Failure<Any>>()
 
         for (rule in allValidationRules) {
-            val guard = rule.guard
-            if (guard != null && !guard.allows(context)) {
-                if (rule.name !in skippedRules) {
-                    skippedRules[rule.name] = guard.description
-                    if (collectEvents) collector.collect(EngineEvent.RuleSkipped(rule.name, guard.description))
-                }
-                continue
-            }
+            if (checkGuardAndSkip(rule.guard, rule.name)) continue
 
             val matchingFacts = workingMemory.ofType(rule.inputType).toList()
 
             for (fact in matchingFacts) {
                 val typedRule = rule as InternalValidationRule<Any>
 
-                if (typedRule.evaluateAsync(fact)) {
-                    if (collectEvents) collector.collect(EngineEvent.ValidationPassed(rule.name, fact))
-                } else {
-                    val reason = typedRule.getFailureCause(fact)
-                    failures.add(Failure(rule.name, reason))
-                    if (collectEvents) collector.collect(EngineEvent.ValidationFailed(rule.name, fact, reason))
-                }
+                val passed = typedRule.evaluateAsync(fact)
+                recordValidationResult(passed, typedRule, fact, failures)
             }
         }
 

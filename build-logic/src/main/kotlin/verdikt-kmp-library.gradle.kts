@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("org.jetbrains.kotlin.multiplatform")
+    id("org.jetbrains.dokka")
     `maven-publish`
     signing
 }
@@ -45,8 +46,14 @@ kotlin {
     linuxX64()
 }
 
+val javadocJar by tasks.registering(Jar::class) {
+    archiveClassifier.set("javadoc")
+    from(tasks.named("dokkaGeneratePublicationHtml"))
+}
+
 publishing {
     publications.withType<MavenPublication>().configureEach {
+        artifact(javadocJar)
         pom {
             url.set("https://github.com/block/verdikt")
 
